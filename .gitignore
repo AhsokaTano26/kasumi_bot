@@ -109,7 +109,7 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-.env
+
 .venv
 env/
 venv/
@@ -150,10 +150,7 @@ data/
 logs/
 *.log
 
-# NoneBot config
-.env.dev
-.env.prod
-.env.local
+
 
 ### IDE ###
 .idea/
