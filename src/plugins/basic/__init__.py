@@ -2,6 +2,10 @@ import random
 
 from nonebot import get_plugin_config, on_command
 from nonebot.adapters.qq import MessageEvent
+from nonebot.adapters.qq.event import (
+    C2CMessageCreateEvent,
+    GroupAtMessageCreateEvent,
+)
 from nonebot.plugin import PluginMetadata
 
 from .config import Config
@@ -51,6 +55,7 @@ HELP_TEXT = """可用命令列表：
 /ping - 测试机器人响应
 /hello 或 /你好 - 打招呼
 /help 或 /帮助 - 显示此帮助信息
+/id 或 /getid - 查询用户ID和群组ID
 
 娱乐命令：
 /random <最小值> <最大值> - 生成随机数
@@ -62,3 +67,20 @@ HELP_TEXT = """可用命令列表：
 @help_cmd.handle()
 async def handle_help(event: MessageEvent):
     await help_cmd.finish(HELP_TEXT)
+
+
+# ID 查询命令
+id_cmd = on_command("id", aliases={"getid", "查询id"}, priority=10, block=True)
+
+
+@id_cmd.handle()
+async def handle_id(event: MessageEvent) -> None:
+    user_id = event.get_user_id()
+    lines = [f"UserID: {user_id}"]
+
+    if isinstance(event, GroupAtMessageCreateEvent):
+        lines.append(f"GroupID: {event.group_openid}")
+    elif isinstance(event, C2CMessageCreateEvent):
+        lines.append("类型: 私聊（无GroupID）")
+
+    await id_cmd.finish("\n".join(lines))
