@@ -1,7 +1,7 @@
 import random
 
 from nonebot import get_plugin_config, on_command
-from nonebot.adapters.qq import MessageEvent
+from nonebot.adapters.qq import Message
 from nonebot.params import CommandArg
 from nonebot.plugin import PluginMetadata
 
@@ -20,15 +20,18 @@ config = get_plugin_config(Config)
 random_cmd = on_command("random", priority=10, block=True)
 
 
+RANDOM_ARGS_COUNT = 2
+
+
 @random_cmd.handle()
-async def handle_random(event: MessageEvent, args: MessageEvent = CommandArg()):
+async def handle_random(args: Message[str] = CommandArg()) -> None:
     args_str = args.extract_plain_text().strip()
     if not args_str:
         await random_cmd.finish("请提供范围，例如：/random 1 100")
 
     try:
         parts = args_str.split()
-        if len(parts) != 2:
+        if len(parts) != RANDOM_ARGS_COUNT:
             await random_cmd.finish("格式错误，请使用：/random <最小值> <最大值>")
 
         min_val = int(parts[0])
@@ -60,7 +63,7 @@ JOKES = [
 
 
 @joke_cmd.handle()
-async def handle_joke(event: MessageEvent):
+async def handle_joke() -> None:
     joke = random.choice(JOKES)
     await joke_cmd.finish(joke)
 
@@ -72,7 +75,7 @@ DICE_FACES = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"]
 
 
 @dice_cmd.handle()
-async def handle_dice(event: MessageEvent):
+async def handle_dice() -> None:
     result = random.randint(1, 6)
     dice_face = DICE_FACES[result - 1]
     await dice_cmd.finish(f"骰子结果：{dice_face} ({result}点)")

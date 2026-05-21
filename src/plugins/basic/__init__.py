@@ -24,7 +24,7 @@ ping_cmd = on_command("ping", aliases={"ping"}, priority=10, block=True)
 
 
 @ping_cmd.handle()
-async def handle_ping(event: MessageEvent):
+async def handle_ping() -> None:
     await ping_cmd.finish("pong")
 
 
@@ -41,7 +41,7 @@ HELLO_RESPONSES = [
 
 
 @hello_cmd.handle()
-async def handle_hello(event: MessageEvent):
+async def handle_hello() -> None:
     response = random.choice(HELLO_RESPONSES)
     await hello_cmd.finish(response)
 
@@ -65,7 +65,7 @@ HELP_TEXT = """可用命令列表：
 
 
 @help_cmd.handle()
-async def handle_help(event: MessageEvent):
+async def handle_help() -> None:
     await help_cmd.finish(HELP_TEXT)
 
 

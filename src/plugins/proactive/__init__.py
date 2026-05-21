@@ -1,7 +1,7 @@
 import asyncio
 
 import nonebot
-from nonebot import get_plugin_config, on_command
+from nonebot import get_plugin_config, on_command, require
 from nonebot.adapters.qq import Bot, MessageEvent
 from nonebot.adapters.qq.event import (
     C2CMessageCreateEvent,
@@ -11,10 +11,9 @@ from nonebot.plugin import PluginMetadata
 
 from .config import Config
 
-try:
-    from nonebot_plugin_apscheduler import scheduler
-except ImportError:
-    scheduler = None
+require("nonebot_plugin_apscheduler")
+
+from nonebot_plugin_apscheduler import scheduler
 
 __plugin_meta__ = PluginMetadata(
     name="proactive",
@@ -65,20 +64,18 @@ async def handle_proactive(bot: Bot, event: MessageEvent) -> None:
 
 
 # Feature 2: 后台定时任务
-if scheduler is not None:
+@scheduler.scheduled_job("interval", minutes=30, id="proactive_scheduled")
+async def scheduled_proactive() -> None:
+    group_id = config.proactive_group_id
+    if not group_id:
+        return
 
-    @scheduler.scheduled_job("interval", minutes=30, id="proactive_scheduled")
-    async def scheduled_proactive() -> None:
-        group_id = config.proactive_group_id
-        if not group_id:
-            return
-
-        try:
-            bot = nonebot.get_bot()
-            await bot.send_to_group(
-                group_openid=group_id,
-                message="这是定时发送的主动消息！（每30分钟）",
-            )
-            nonebot.logger.info("定时主动消息发送成功")
-        except Exception:  # noqa: BLE001
-            nonebot.logger.exception("定时主动消息发送失败")
+    try:
+        bot = nonebot.get_bot()
+        await bot.send_to_group(
+            group_openid=group_id,
+            message="这是定时发送的主动消息！（每30分钟）",
+        )
+        nonebot.logger.info("定时主动消息发送成功")
+    except Exception:  # noqa: BLE001
+        nonebot.logger.exception("定时主动消息发送失败")
