@@ -36,6 +36,9 @@ proactive_cmd = on_command("proactive", aliases={"主动测试"}, priority=10, b
 async def handle_proactive(bot: Bot, event: MessageEvent) -> None:
     await proactive_cmd.send("收到！将在5秒后发送主动消息...")
 
+    # 保存事件信息，延迟发送需要 msg_id
+    msg_id = event.id
+
     async def send_delayed() -> None:
         await asyncio.sleep(5)
         try:
@@ -43,14 +46,17 @@ async def handle_proactive(bot: Bot, event: MessageEvent) -> None:
                 await bot.send_to_group(
                     group_openid=event.group_openid,
                     message="这是延迟5秒后的主动消息！测试成功！",
+                    msg_id=msg_id,
                 )
             elif isinstance(event, C2CMessageCreateEvent):
                 await bot.send_to_c2c(
                     openid=event.author.user_openid,
                     message="这是延迟5秒后的主动消息！测试成功！",
+                    msg_id=msg_id,
                 )
-        except (OSError, RuntimeError):
-            nonebot.logger.warning("延迟主动消息发送失败")
+            nonebot.logger.info("延迟主动消息发送成功")
+        except Exception:  # noqa: BLE001
+            nonebot.logger.exception("延迟主动消息发送失败")
 
     task = asyncio.create_task(send_delayed())
     _background_tasks.add(task)
@@ -70,5 +76,6 @@ async def scheduled_proactive() -> None:
             group_openid=group_id,
             message="这是定时发送的主动消息！（每30分钟）",
         )
-    except (OSError, RuntimeError):
-        nonebot.logger.warning("定时主动消息发送失败，可能没有可用的bot实例")
+        nonebot.logger.info("定时主动消息发送成功")
+    except Exception:  # noqa: BLE001
+        nonebot.logger.exception("定时主动消息发送失败")
