@@ -21,7 +21,7 @@ dev = [
 
 [tool.nonebot]
 plugin_dirs = ["src/plugins"]
-builtin_plugins = ["nonebot_plugin_apscheduler", "nonebot_plugin_orm"]
+builtin_plugins = []
 
 [tool.nonebot.adapters]
 nonebot-adapter-qq = [
