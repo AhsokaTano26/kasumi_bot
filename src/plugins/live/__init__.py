@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import nonebot
 from nonebot import get_plugin_config, on_command, require
@@ -61,20 +61,24 @@ async def handle_live(
     result = await session.execute(select(LiveEvent))
     all_events = result.scalars().all()
 
-    results: list[LiveEvent] = []
+    # 筛选未来演出，记录最近日期用于排序
+    upcoming: list[tuple[date, LiveEvent]] = []
     for event in all_events:
         normalized = [
             datetime.strptime(d, "%Y.%m.%d").replace(tzinfo=timezone.utc).date()
             for d in event.date_list
             if d
         ]
-        if not any(d >= today for d in normalized):
+        future_dates = sorted(d for d in normalized if d >= today)
+        if not future_dates:
             continue
         if band_filter and band_filter.lower() not in event.bands.lower():
             continue
-        results.append(event)
-        if len(results) >= MAX_RESULTS:
-            break
+        upcoming.append((future_dates[0], event))
+
+    # 按最近日期排序，取前 5 条
+    upcoming.sort(key=lambda x: x[0])
+    results = [ev for _, ev in upcoming[:MAX_RESULTS]]
 
     if not results:
         if band_filter:
@@ -104,6 +108,6 @@ refresh_cmd = on_command("refreshlive", aliases={"刷新演出"}, priority=10, b
 async def handle_refresh() -> None:
     try:
         count = await crawl_and_store()
-        await refresh_cmd.finish(f"演出信息刷新完成，共处理 {count} 条")
+        await refresh_cmd.send(f"演出信息刷新完成，共处理 {count} 条")
     except Exception:  # noqa: BLE001
         await refresh_cmd.finish("刷新失败，请查看日志")
