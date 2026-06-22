@@ -40,7 +40,7 @@ nb-cli==1.7.4
 nb-cli-plugin-docker==0.6.1
 nodeenv==1.10.0
 nodejs-wheel-binaries==24.15.0
-nonebot-adapter-qq==1.7.0
+nonebot-adapter-qq==1.7.1
 nonebot-plugin-apscheduler==0.5.0
 nonebot-plugin-localstore==0.7.4
 nonebot-plugin-orm==0.8.3
