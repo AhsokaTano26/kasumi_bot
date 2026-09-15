@@ -23,7 +23,16 @@
   `[tool.ruff.lint.pyupgrade] keep-runtime-typing = true` **不会**抑制这三条规则（ruff 0.15.13 实测，true/false 输出完全一致）。
   从 `typing` 只导入 `Any`、`TYPE_CHECKING` 这类真正还需要的东西。
 - **代码风格**：ruff `line-length = 88`、LF 行尾。提交前必须 `ruff check src/` 与 `ruff format src/` 均无输出。
-- **类型检查**：`pyright src/` 必须 0 error。
+- **类型检查**：`pyright src/` 必须 0 error。直接运行即可，不需要加 `--pythonpath`——Task 2 已在
+  `[tool.pyright]` 里补上 `venvPath` / `venv` 两个设置（实测：不加时 pyright 解析不出 `.venv` 里的
+  `nonebot`、`pydantic`、`tsugu_api_async`，会报 4 条 `reportMissingImports`）。
+- **导入风格**：跨子包用绝对导入（`from tsugu import api` / `from tsugu import constants as const`），
+  同包内用单点相对导入（`from . import Ctx, register`）。**不要用父级相对导入 `from .. import x`**——
+  ruff 的 `TID252` 会报错。常量模块的别名用小写 `const`，不要用 `K`（`N812` 禁止小写模块用大写别名）。
+- **布尔参数**：一律写成仅关键字参数（`*, enabled: bool`），调用时用 `enabled=True`（`FBT001`/`FBT003`）。
+- **`except Exception`**：只有在异常对象**未被使用**时才需要 `# noqa: BLE001`；如果写了
+  `except Exception as exc:` 并在体内用到了 `exc`（例如 `logger.opt(exception=exc)`），
+  BLE001 不会触发，此时加 noqa 反而会触发 `RUF100`（未使用的 noqa）。
 - **提交信息**：**只能一句话**，形如 `feat: 新增触发层`。不留正文、不留空行、**绝不加 `Co-Authored-By` 或任何 Claude 字样**。
 - **不写 pytest 测试套件**（用户明确要求精简）。每个任务的验证用一次性探针脚本或真实后端调用完成。探针脚本写到 `$CLAUDE_JOB_DIR/tmp/`（该变量未设置时用 `/tmp`），**不要提交到仓库**。
   探针脚本的固定前缀：`sys.path.insert(0, "src/plugins")` 之后必须紧跟 `import nonebot` + `nonebot.init()`，**然后**才能 import `tsugu.*`。
@@ -253,7 +262,6 @@ git commit -m "refactor: 移除演示插件并补齐 QQ 适配器所需的驱动
 
 from __future__ import annotations
 
-
 from pydantic import BaseModel
 
 
@@ -373,15 +381,45 @@ SERVER_NAME_TO_ID: dict[str, int] = {
 
 TIER_LISTS: dict[str, list[int]] = {
     "jp": [
-        20, 30, 40, 50, 100, 200, 300, 400, 500, 1000,
-        2000, 5000, 10000, 20000, 30000, 50000,
+        20,
+        30,
+        40,
+        50,
+        100,
+        200,
+        300,
+        400,
+        500,
+        1000,
+        2000,
+        5000,
+        10000,
+        20000,
+        30000,
+        50000,
     ],
     "tw": [100, 500],
     "en": [50, 100, 300, 500, 1000, 2000, 2500],
     "kr": [100],
     "cn": [
-        20, 30, 40, 50, 100, 200, 300, 400, 500, 1000,
-        2000, 3000, 4000, 5000, 10000, 20000, 30000, 50000,
+        20,
+        30,
+        40,
+        50,
+        100,
+        200,
+        300,
+        400,
+        500,
+        1000,
+        2000,
+        3000,
+        4000,
+        5000,
+        10000,
+        20000,
+        30000,
+        50000,
     ],
 }
 
@@ -420,22 +458,68 @@ DEFAULT_DIFFICULTY_ID = 3
 # ---- 车牌关键词 ----
 
 CAR_KEYWORDS: list[str] = [
-    "q1", "q2", "q3", "q4",
-    "缺1", "缺2", "缺3", "缺4",
-    "差1", "差2", "差3", "差4",
-    "3火", "三火", "3把", "三把",
-    "打满", "清火", "奇迹", "中途",
-    "大e", "大分e", "exi", "大分跳", "大跳",
-    "大a", "大s", "大分a", "大分s",
-    "长途", "生日车", "军训", "禁fc",
+    "q1",
+    "q2",
+    "q3",
+    "q4",
+    "缺1",
+    "缺2",
+    "缺3",
+    "缺4",
+    "差1",
+    "差2",
+    "差3",
+    "差4",
+    "3火",
+    "三火",
+    "3把",
+    "三把",
+    "打满",
+    "清火",
+    "奇迹",
+    "中途",
+    "大e",
+    "大分e",
+    "exi",
+    "大分跳",
+    "大跳",
+    "大a",
+    "大s",
+    "大分a",
+    "大分s",
+    "长途",
+    "生日车",
+    "军训",
+    "禁fc",
 ]
 
 FAKE_KEYWORDS: list[str] = [
-    "114514", "野兽", "恶臭", "1919", "下北泽",
-    "粪", "糞", "臭", "11451", "xiabeize",
-    "雀魂", "麻将", "打牌", "maj", "麻",
-    "[", "]", "断幺", "qq.com", "腾讯会议",
-    "master", "疯狂星期四", "离开了我们", "日元", "av", "bv",
+    "114514",
+    "野兽",
+    "恶臭",
+    "1919",
+    "下北泽",
+    "粪",
+    "糞",
+    "臭",
+    "11451",
+    "xiabeize",
+    "雀魂",
+    "麻将",
+    "打牌",
+    "maj",
+    "麻",
+    "[",
+    "]",
+    "断幺",
+    "qq.com",
+    "腾讯会议",
+    "master",
+    "疯狂星期四",
+    "离开了我们",
+    "日元",
+    "av",
+    "bv",
 ]
 
 # ---- 错误文案 ----
@@ -676,7 +760,10 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from collections.abc import Iterable
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 CAR_PATTERN = re.compile(r"^(\d{5,6})(.*)$", re.DOTALL)
 MODE_SHORTCUT = re.compile(r"^(.+服)模式$")
@@ -791,7 +878,7 @@ import nonebot
 # tsugu/__init__.py 在 import 时就会调用 get_plugin_config，必须先初始化 NoneBot
 nonebot.init()
 
-from tsugu import constants as K
+from tsugu import constants as const
 from tsugu.rule import (
     apply_shortcut,
     build_head_table,
@@ -800,7 +887,7 @@ from tsugu.rule import (
     normalize,
 )
 
-table = build_head_table(K.COMMAND_HEADS)
+table = build_head_table(const.COMMAND_HEADS)
 
 # 模拟「@bot 查卡 1399」经 extract_plain_text 后的样子
 text = normalize(" 查卡 1399")
@@ -835,12 +922,12 @@ m = match_command(apply_shortcut("日服模式"), table)
 assert m.command == "main_server" and m.args == ["日服"], m
 
 # 车牌
-assert match_car("123456 大分车", K.CAR_KEYWORDS, K.FAKE_KEYWORDS) == (123456, " 大分车")
-assert match_car("12345 q1", K.CAR_KEYWORDS, K.FAKE_KEYWORDS) == (12345, " q1")
-assert match_car("123456 雀魂", K.CAR_KEYWORDS, K.FAKE_KEYWORDS) is None   # fake 词
-assert match_car("123456 随便聊聊", K.CAR_KEYWORDS, K.FAKE_KEYWORDS) is None  # 无 car 词
-assert match_car("1234 大分车", K.CAR_KEYWORDS, K.FAKE_KEYWORDS) is None   # 位数不足
-assert match_car("查卡 1399", K.CAR_KEYWORDS, K.FAKE_KEYWORDS) is None     # 非数字开头
+assert match_car("123456 大分车", const.CAR_KEYWORDS, const.FAKE_KEYWORDS) == (123456, " 大分车")
+assert match_car("12345 q1", const.CAR_KEYWORDS, const.FAKE_KEYWORDS) == (12345, " q1")
+assert match_car("123456 雀魂", const.CAR_KEYWORDS, const.FAKE_KEYWORDS) is None   # fake 词
+assert match_car("123456 随便聊聊", const.CAR_KEYWORDS, const.FAKE_KEYWORDS) is None  # 无 car 词
+assert match_car("1234 大分车", const.CAR_KEYWORDS, const.FAKE_KEYWORDS) is None   # 位数不足
+assert match_car("查卡 1399", const.CAR_KEYWORDS, const.FAKE_KEYWORDS) is None     # 非数字开头
 
 # 空参数与纯命令头
 m = match_command("ycx", table)
@@ -1104,8 +1191,8 @@ git commit -m "feat: 新增响应转换层，处理被动消息条数上限与�
 
 from __future__ import annotations
 
-from typing import Any
-from collections.abc import Sequence
+from http import HTTPStatus
+from typing import TYPE_CHECKING, Any
 
 import nonebot
 import tsugu_api_async
@@ -1116,7 +1203,10 @@ from tsugu_api_core.exception import (
     TsuguException,
 )
 
-from . import constants as K
+from . import constants as const
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 Response = list[dict[str, str]]
 """Tsugu 后端的统一响应结构。"""
@@ -1142,23 +1232,23 @@ def _platform() -> str:
 def describe_error(exc: BaseException) -> str:
     """把 tsugu_api 抛出的异常翻译成给用户看的中文文案。"""
     if isinstance(exc, BadRequestError):
-        return K.HTTP_ERROR_TEXTS[400]
+        return const.HTTP_ERROR_TEXTS[400]
     if isinstance(exc, FailedException):
-        if exc.status_code == 422:
+        if exc.status_code == HTTPStatus.UNPROCESSABLE_ENTITY:
             return f"错误: 无效的请求 ({exc.data})"
-        if exc.status_code in K.HTTP_ERROR_TEXTS:
-            return K.HTTP_ERROR_TEXTS[exc.status_code]
+        if exc.status_code in const.HTTP_ERROR_TEXTS:
+            return const.HTTP_ERROR_TEXTS[exc.status_code]
         return str(exc.data)
     if isinstance(exc, (HTTPStatusError, TsuguException)):
-        return K.ERR_NETWORK
-    return K.ERR_NETWORK
+        return const.ERR_NETWORK
+    return const.ERR_NETWORK
 
 
 async def _query(coro: Any) -> Response:
     """执行一次后端查询，把任何异常收敛成错误文本响应。"""
     try:
         return await coro
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - 网络/超时/解析错误都要收敛成文案
         nonebot.logger.opt(exception=exc).debug("Tsugu 后端查询失败")
         return _error(describe_error(exc))
 
@@ -1172,35 +1262,35 @@ async def resolve_server(name: str) -> int:
     先查本地表（英文代号 / 中文全名 / 数字），未命中再走后端模糊搜索。
     失败抛 ValueError，文案已可直接展示。
     """
-    if (server_id := K.SERVER_NAME_TO_ID.get(name)) is not None:
+    if (server_id := const.SERVER_NAME_TO_ID.get(name)) is not None:
         return server_id
-    if (server_id := K.SERVER_NAME_TO_ID.get(name.lower())) is not None:
+    if (server_id := const.SERVER_NAME_TO_ID.get(name.lower())) is not None:
         return server_id
 
     try:
         found = (await tsugu_api_async.fuzzy_search(name))["data"].get("server", [])
     except Exception as exc:
         nonebot.logger.opt(exception=exc).debug("服务器名模糊搜索失败")
-        raise ValueError(K.ERR_SERVER_NOT_FOUND) from exc
+        raise ValueError(const.ERR_SERVER_NOT_FOUND) from exc
 
-    if not found or found[0] not in K.SERVER_ID_TO_NAME:
-        raise ValueError(K.ERR_SERVER_NOT_FOUND)
+    if not found or found[0] not in const.SERVER_ID_TO_NAME:
+        raise ValueError(const.ERR_SERVER_NOT_FOUND)
     return int(found[0])
 
 
 async def resolve_difficulty(name: str) -> int:
     """把难度名解析成 DifficultyId。失败抛 ValueError，文案已可直接展示。"""
-    if (difficulty_id := K.DIFFICULTY_NAMES.get(name.lower())) is not None:
+    if (difficulty_id := const.DIFFICULTY_NAMES.get(name.lower())) is not None:
         return difficulty_id
 
     try:
         found = (await tsugu_api_async.fuzzy_search(name))["data"].get("difficulty", [])
     except Exception as exc:
         nonebot.logger.opt(exception=exc).debug("难度名模糊搜索失败")
-        raise ValueError(K.ERR_DIFFICULTY_NOT_FOUND) from exc
+        raise ValueError(const.ERR_DIFFICULTY_NOT_FOUND) from exc
 
     if not found or found[0] not in (0, 1, 2, 3, 4):
-        raise ValueError(K.ERR_DIFFICULTY_NOT_FOUND)
+        raise ValueError(const.ERR_DIFFICULTY_NOT_FOUND)
     return int(found[0])
 
 
@@ -1223,10 +1313,8 @@ async def load_user(user_id: str) -> dict[str, Any]:
 async def change_user(user_id: str, update: dict[str, Any]) -> str | None:
     """写入用户数据。成功返回 None，失败返回可直接展示的错误文案。"""
     try:
-        response = await tsugu_api_async.change_user_data(
-            _platform(), user_id, update
-        )
-    except Exception as exc:
+        response = await tsugu_api_async.change_user_data(_platform(), user_id, update)
+    except Exception as exc:  # noqa: BLE001 - 网络/超时/解析错误都要收敛成文案
         nonebot.logger.opt(exception=exc).debug("写入用户数据失败")
         return describe_error(exc)
 
@@ -1248,9 +1336,7 @@ async def request_bind_code(user_id: str) -> int:
     return int(response["data"]["verifyCode"])
 
 
-async def verify_bind(
-    user_id: str, server: int, player_id: int, action: str
-) -> str:
+async def verify_bind(user_id: str, server: int, player_id: int, action: str) -> str:
     """提交绑定或解绑验证。返回后端给的提示文本。"""
     try:
         response = await tsugu_api_async.bind_player_verification(
@@ -1306,9 +1392,7 @@ async def song_meta(servers: Sequence[int], server: int) -> Response:
     return await _query(tsugu_api_async.song_meta(servers, server))
 
 
-async def event_stage(
-    server: int, event_id: int | None, meta: bool
-) -> Response:
+async def event_stage(server: int, event_id: int | None, *, meta: bool) -> Response:
     return await _query(tsugu_api_async.event_stage(server, event_id, meta))
 
 
@@ -1322,9 +1406,7 @@ async def gacha_simulate(
     return await _query(tsugu_api_async.gacha_simulate(server, times, gacha_id))
 
 
-async def cutoff_detail(
-    server: int, tier: int, event_id: int | None
-) -> Response:
+async def cutoff_detail(server: int, tier: int, event_id: int | None) -> Response:
     return await _query(tsugu_api_async.cutoff_detail(server, tier, event_id))
 
 
@@ -1332,9 +1414,7 @@ async def cutoff_all(server: int, event_id: int | None) -> Response:
     return await _query(tsugu_api_async.cutoff_all(server, event_id))
 
 
-async def cutoff_history(
-    server: int, tier: int, event_id: int | None
-) -> Response:
+async def cutoff_history(server: int, tier: int, event_id: int | None) -> Response:
     return await _query(
         tsugu_api_async.cutoff_list_of_recent_event(server, tier, event_id)
     )
@@ -1500,7 +1580,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from . import api
-from . import constants as K
+from . import constants as const
 
 if TYPE_CHECKING:
     from nonebot.matcher import Matcher
@@ -1550,7 +1630,7 @@ pending: dict[str, PendingBind] = {}
 
 def server_name(server: int) -> str:
     """服务器 ID 转中文名。"""
-    return K.SERVER_ID_TO_NAME.get(server, str(server))
+    return const.SERVER_ID_TO_NAME.get(server, str(server))
 
 
 async def load_user_or_finish(matcher: "Matcher", user_id: str) -> User:
@@ -1576,11 +1656,11 @@ def pick_player(
     """
     players = user.user_player_list
     if not players:
-        raise ValueError(K.ERR_NOT_BOUND_ANY)
+        raise ValueError(const.ERR_NOT_BOUND_ANY)
 
     if index is not None:
         if index < 1 or index > len(players):
-            raise ValueError(K.ERR_INDEX_INVALID)
+            raise ValueError(const.ERR_INDEX_INVALID)
         return players[index - 1]
 
     target = user.main_server if server is None else server
@@ -1593,18 +1673,20 @@ def pick_player(
         if player["server"] == target:
             return player
 
-    raise ValueError(K.ERR_NOT_BOUND_ON_SERVER)
+    raise ValueError(const.ERR_NOT_BOUND_ON_SERVER)
 
 
 def build_player_list_text(user: User) -> str:
     """玩家状态列表命令的纯文本回复。"""
     lines: list[str] = []
     if not user.user_player_list:
-        lines.append(K.ERR_NOT_BOUND_ANY)
+        lines.append(const.ERR_NOT_BOUND_ANY)
     else:
         lines.append("已绑定玩家列表:")
         for index, player in enumerate(user.user_player_list, 1):
-            lines.append(f"{index}. {server_name(player['server'])}: {player['playerId']}")
+            lines.append(
+                f"{index}. {server_name(player['server'])}: {player['playerId']}"
+            )
         lines.append(f"当前默认玩家绑定信息ID: {user.user_player_index + 1}")
 
     lines.append(f"当前主服务器: {server_name(user.main_server)}")
@@ -1641,7 +1723,7 @@ import nonebot
 # tsugu/__init__.py 在 import 时就会调用 get_plugin_config，必须先初始化 NoneBot
 nonebot.init()
 
-from tsugu import constants as K
+from tsugu import constants as const
 from tsugu.user import User, build_bind_prompt, build_player_list_text, pick_player
 
 # 未绑定任何玩家
@@ -1650,7 +1732,7 @@ for kwargs in ({}, {"server": 0}, {"index": 1}):
     try:
         pick_player(user, **kwargs)
     except ValueError as exc:
-        assert str(exc) == K.ERR_NOT_BOUND_ANY, exc
+        assert str(exc) == const.ERR_NOT_BOUND_ANY, exc
     else:
         raise AssertionError("应当抛 ValueError")
 
@@ -1681,7 +1763,7 @@ assert pick_player(user, server=3)["playerId"] == 111
 try:
     pick_player(user, server=2)
 except ValueError as exc:
-    assert str(exc) == K.ERR_NOT_BOUND_ON_SERVER, exc
+    assert str(exc) == const.ERR_NOT_BOUND_ON_SERVER, exc
 else:
     raise AssertionError("应当抛 ValueError")
 
@@ -1690,7 +1772,7 @@ for bad in (0, -1, 4):
     try:
         pick_player(user, index=bad)
     except ValueError as exc:
-        assert str(exc) == K.ERR_INDEX_INVALID, exc
+        assert str(exc) == const.ERR_INDEX_INVALID, exc
     else:
         raise AssertionError(f"index={bad} 应当抛 ValueError")
 
@@ -1805,15 +1887,13 @@ async def is_gacha_enabled(group_openid: str) -> bool:
         return True if setting is None else bool(setting.gacha_enabled)
 
 
-async def set_gacha_enabled(group_openid: str, enabled: bool) -> None:
+async def set_gacha_enabled(group_openid: str, *, enabled: bool) -> None:
     """写入群级抽卡开关，不存在则插入。"""
     session = get_session()
     async with session.begin():
         setting = await session.get(GroupSetting, group_openid)
         if setting is None:
-            session.add(
-                GroupSetting(group_openid=group_openid, gacha_enabled=enabled)
-            )
+            session.add(GroupSetting(group_openid=group_openid, gacha_enabled=enabled))
         else:
             setting.gacha_enabled = enabled
 ```
@@ -1840,7 +1920,7 @@ async def submit_room_number(
             user_name,
             bandori_station_token=bandori_station_token,
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - 网络/超时/解析错误都要收敛成文案
         nonebot.logger.opt(exception=exc).debug("提交车牌失败")
         return describe_error(exc)
 
@@ -1865,13 +1945,13 @@ from typing import Any
 import nonebot
 
 from . import api
-from . import constants as K
+from . import constants as const
 from .rule import match_car
 
 
 async def maybe_forward(event: Any, user_id: str, text: str) -> bool:
     """识别并提交车牌。命中并提交成功返回 True，应当终止后续命令分派。"""
-    car = match_car(text, K.CAR_KEYWORDS, K.FAKE_KEYWORDS)
+    car = match_car(text, const.CAR_KEYWORDS, const.FAKE_KEYWORDS)
     if car is None:
         return False
 
@@ -1914,17 +1994,16 @@ async def maybe_forward(event: Any, user_id: str, text: str) -> bool:
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
-from collections.abc import Awaitable, Callable
 
-from ..sender import Response, send_result
+from tsugu.sender import Response, send_result
 
 if TYPE_CHECKING:
     from nonebot.adapters.qq import Bot
     from nonebot.matcher import Matcher
-
-    from ..user import PendingBind
+    from tsugu.user import PendingBind
 
 
 @dataclass
@@ -1991,19 +2070,20 @@ def register(command: str) -> Callable[[Handler], Handler]:
 
 from __future__ import annotations
 
-from .. import api, db, user
-from .. import constants as K
+from tsugu import api, db, user
+from tsugu import constants as const
+
 from . import Ctx, register
 
 
 @register("search_gacha")
 async def handle_search_gacha(ctx: Ctx) -> None:
     if not ctx.args:
-        await ctx.reply_error(K.incomplete_cmd_text(ctx.head))
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 
     if not ctx.args[0].lstrip("-").isdigit():
-        await ctx.reply_error(K.incomplete_cmd_text(ctx.head))
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 
     tsugu_user = await user.load_user_or_finish(ctx.matcher, ctx.user_id)
@@ -2015,27 +2095,25 @@ async def handle_search_gacha(ctx: Ctx) -> None:
 @register("gacha_simulate")
 async def handle_gacha_simulate(ctx: Ctx) -> None:
     if not ctx.args or not ctx.args[0].isdigit():
-        await ctx.reply_error(K.incomplete_cmd_text(ctx.head))
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 
     if ctx.group_openid is not None and not await db.is_gacha_enabled(ctx.group_openid):
-        await ctx.reply_text(K.ERR_GACHA_DISABLED)
+        await ctx.reply_text(const.ERR_GACHA_DISABLED)
         return
 
     times = int(ctx.args[0])
     gacha_id = int(ctx.args[1]) if len(ctx.args) > 1 and ctx.args[1].isdigit() else None
 
     tsugu_user = await user.load_user_or_finish(ctx.matcher, ctx.user_id)
-    await ctx.reply(
-        await api.gacha_simulate(tsugu_user.main_server, times, gacha_id)
-    )
+    await ctx.reply(await api.gacha_simulate(tsugu_user.main_server, times, gacha_id))
 
 
-async def _switch_gacha(ctx: Ctx, enabled: bool) -> None:
+async def _switch_gacha(ctx: Ctx, *, enabled: bool) -> None:
     if ctx.group_openid is None:
-        await ctx.reply_text(K.ERR_GROUP_ONLY)
+        await ctx.reply_text(const.ERR_GROUP_ONLY)
         return
-    await db.set_gacha_enabled(ctx.group_openid, enabled)
+    await db.set_gacha_enabled(ctx.group_openid, enabled=enabled)
     await ctx.reply_text("开启成功" if enabled else "关闭成功")
 
 
@@ -2046,21 +2124,21 @@ async def handle_gacha_switch(ctx: Ctx) -> None:
         return
     word = ctx.args[0]
     if word in ("on", "开启"):
-        await _switch_gacha(ctx, True)
+        await _switch_gacha(ctx, enabled=True)
     elif word in ("off", "关闭"):
-        await _switch_gacha(ctx, False)
+        await _switch_gacha(ctx, enabled=False)
     else:
         await ctx.reply_text("无效指令")
 
 
 @register("gacha_on")
 async def handle_gacha_on(ctx: Ctx) -> None:
-    await _switch_gacha(ctx, True)
+    await _switch_gacha(ctx, enabled=True)
 
 
 @register("gacha_off")
 async def handle_gacha_off(ctx: Ctx) -> None:
-    await _switch_gacha(ctx, False)
+    await _switch_gacha(ctx, enabled=False)
 ```
 
 注意 `抽卡模拟` 对群级开关的判断放在参数校验**之后**：mainline 也是先校验 `times` 再查开关。而私聊（`group_openid is None`）永远放行。
@@ -2080,12 +2158,12 @@ import time
 from typing import Any
 
 import nonebot
+import tsugu_api_async
 from nonebot import get_plugin_config, on_message
 from nonebot.plugin import PluginMetadata
 
-import tsugu_api_async
-
-from . import car, constants as K, user
+from . import car, user
+from . import constants as const
 from .commands import HANDLERS, Ctx
 from .config import Config
 from .rule import (
@@ -2116,7 +2194,7 @@ tsugu_api_async.settings.userdata_backend_proxy = config.tsugu_data_backend_prox
 tsugu_api_async.settings.use_easy_bg = config.tsugu_use_easy_bg
 tsugu_api_async.settings.compress = config.tsugu_compress
 
-HEAD_TABLE = build_head_table(K.COMMAND_HEADS)
+HEAD_TABLE = build_head_table(const.COMMAND_HEADS)
 
 tsugu = on_message(priority=10, block=True)
 
@@ -2131,7 +2209,7 @@ async def _dispatch(bot: Any, event: Any) -> None:
     pending = user.pending.pop(user_id, None)
     if pending is not None:
         if time.monotonic() - pending.created_at > config.tsugu_bind_timeout:
-            await tsugu.finish(K.ERR_BIND_TIMEOUT)
+            await tsugu.finish(const.ERR_BIND_TIMEOUT)
             return
         command, head, args = "bind_reply", "绑定玩家", [text]
     else:
@@ -2182,10 +2260,10 @@ nonebot.init()
 
 from nonebot.adapters.qq.event import GroupAtMessageCreateEvent
 
-from tsugu import constants as K
+from tsugu import constants as const
 from tsugu.rule import build_head_table, get_group_openid, match_command, normalize
 
-table = build_head_table(K.COMMAND_HEADS)
+table = build_head_table(const.COMMAND_HEADS)
 
 raw = {
     "id": "GROUP_AT_MESSAGE_CREATE:test",
@@ -2280,15 +2358,16 @@ git commit -m "feat: 接入消息分派器、车牌监听与群级抽卡开关"
 
 from __future__ import annotations
 
-from .. import api, user
-from .. import constants as K
+from tsugu import api, user
+from tsugu import constants as const
+
 from . import Ctx, register
 
 
 @register("search_card")
 async def handle_search_card(ctx: Ctx) -> None:
     if not ctx.args:
-        await ctx.reply_error(K.incomplete_cmd_text(ctx.head))
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 
     tsugu_user = await user.load_user_or_finish(ctx.matcher, ctx.user_id)
@@ -2300,7 +2379,7 @@ async def handle_search_card(ctx: Ctx) -> None:
 @register("card_illustration")
 async def handle_card_illustration(ctx: Ctx) -> None:
     if not ctx.args or not ctx.args[0].isdigit():
-        await ctx.reply_error(K.incomplete_cmd_text(ctx.head))
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 
     await ctx.reply(await api.card_illustration(int(ctx.args[0])))
@@ -2313,22 +2392,21 @@ async def handle_card_illustration(ctx: Ctx) -> None:
 
 from __future__ import annotations
 
-from .. import api, user
-from .. import constants as K
+from tsugu import api, user
+from tsugu import constants as const
+
 from . import Ctx, register
 
 
 @register("search_character")
 async def handle_search_character(ctx: Ctx) -> None:
     if not ctx.args:
-        await ctx.reply_error(K.incomplete_cmd_text(ctx.head))
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 
     tsugu_user = await user.load_user_or_finish(ctx.matcher, ctx.user_id)
     await ctx.reply(
-        await api.search_character(
-            tsugu_user.displayed_server_list, " ".join(ctx.args)
-        )
+        await api.search_character(tsugu_user.displayed_server_list, " ".join(ctx.args))
     )
 ```
 
@@ -2339,15 +2417,16 @@ async def handle_search_character(ctx: Ctx) -> None:
 
 from __future__ import annotations
 
-from .. import api, user
-from .. import constants as K
+from tsugu import api, user
+from tsugu import constants as const
+
 from . import Ctx, register
 
 
 @register("search_song")
 async def handle_search_song(ctx: Ctx) -> None:
     if not ctx.args:
-        await ctx.reply_error(K.incomplete_cmd_text(ctx.head))
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 
     tsugu_user = await user.load_user_or_finish(ctx.matcher, ctx.user_id)
@@ -2359,11 +2438,11 @@ async def handle_search_song(ctx: Ctx) -> None:
 @register("song_chart")
 async def handle_song_chart(ctx: Ctx) -> None:
     if not ctx.args or not ctx.args[0].isdigit():
-        await ctx.reply_error(K.incomplete_cmd_text(ctx.head))
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 
     song_id = int(ctx.args[0])
-    difficulty_id = K.DEFAULT_DIFFICULTY_ID
+    difficulty_id = const.DEFAULT_DIFFICULTY_ID
     if len(ctx.args) > 1:
         try:
             difficulty_id = await api.resolve_difficulty(ctx.args[1])
@@ -2380,9 +2459,7 @@ async def handle_song_chart(ctx: Ctx) -> None:
 @register("song_random")
 async def handle_song_random(ctx: Ctx) -> None:
     tsugu_user = await user.load_user_or_finish(ctx.matcher, ctx.user_id)
-    await ctx.reply(
-        await api.song_random(tsugu_user.main_server, " ".join(ctx.args))
-    )
+    await ctx.reply(await api.song_random(tsugu_user.main_server, " ".join(ctx.args)))
 
 
 @register("song_meta")
@@ -2442,9 +2519,9 @@ git commit -m "feat: 新增查卡、查角色与查曲系列命令"
 
 from __future__ import annotations
 
+from tsugu import api, user
+from tsugu import constants as const
 
-from .. import api, user
-from .. import constants as K
 from . import Ctx, register
 
 META_FLAG = "-m"
@@ -2453,7 +2530,7 @@ META_FLAG = "-m"
 @register("search_event")
 async def handle_search_event(ctx: Ctx) -> None:
     if not ctx.args:
-        await ctx.reply_error(K.incomplete_cmd_text(ctx.head))
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 
     tsugu_user = await user.load_user_or_finish(ctx.matcher, ctx.user_id)
@@ -2471,12 +2548,12 @@ async def handle_event_stage(ctx: Ctx) -> None:
     event_id: int | None = None
     if positional:
         if not positional[0].isdigit():
-            await ctx.reply_error(K.incomplete_cmd_text(ctx.head))
+            await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
             return
         event_id = int(positional[0])
 
     tsugu_user = await user.load_user_or_finish(ctx.matcher, ctx.user_id)
-    await ctx.reply(await api.event_stage(tsugu_user.main_server, event_id, meta))
+    await ctx.reply(await api.event_stage(tsugu_user.main_server, event_id, meta=meta))
 ```
 
 - [ ] **Step 2: 写 commands/cutoff.py**
@@ -2491,9 +2568,9 @@ async def handle_event_stage(ctx: Ctx) -> None:
 
 from __future__ import annotations
 
+from tsugu import api, user
+from tsugu import constants as const
 
-from .. import api, user
-from .. import constants as K
 from . import Ctx, register
 
 
@@ -2521,7 +2598,7 @@ async def _resolve_event_and_server(
 @register("cutoff")
 async def handle_cutoff(ctx: Ctx) -> None:
     if not ctx.args or not ctx.args[0].isdigit():
-        await ctx.reply_error(K.incomplete_cmd_text(ctx.head))
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 
     tier = int(ctx.args[0])
@@ -2544,15 +2621,13 @@ async def handle_cutoff_all(ctx: Ctx) -> None:
     event_id, server = parsed
 
     tsugu_user = await user.load_user_or_finish(ctx.matcher, ctx.user_id)
-    await ctx.reply(
-        await api.cutoff_all(server or tsugu_user.main_server, event_id)
-    )
+    await ctx.reply(await api.cutoff_all(server or tsugu_user.main_server, event_id))
 
 
 @register("cutoff_history")
 async def handle_cutoff_history(ctx: Ctx) -> None:
     if not ctx.args or not ctx.args[0].isdigit():
-        await ctx.reply_error(K.incomplete_cmd_text(ctx.head))
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 
     tier = int(ctx.args[0])
@@ -2574,15 +2649,16 @@ async def handle_cutoff_history(ctx: Ctx) -> None:
 
 from __future__ import annotations
 
-from .. import api, user
-from .. import constants as K
+from tsugu import api, user
+from tsugu import constants as const
+
 from . import Ctx, register
 
 
 @register("search_player")
 async def handle_search_player(ctx: Ctx) -> None:
     if not ctx.args or not ctx.args[0].isdigit():
-        await ctx.reply_error(K.incomplete_cmd_text(ctx.head))
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 
     player_id = int(ctx.args[0])
@@ -2608,7 +2684,8 @@ async def handle_search_player(ctx: Ctx) -> None:
 
 from __future__ import annotations
 
-from .. import api
+from tsugu import api
+
 from . import Ctx, register
 
 
@@ -2669,9 +2746,9 @@ git commit -m "feat: 新增查活动、预测线、查玩家与车站命令"
 
 from __future__ import annotations
 
+from tsugu import api, user
+from tsugu import constants as const
 
-from .. import api, user
-from .. import constants as K
 from . import Ctx, register
 
 
@@ -2721,7 +2798,7 @@ async def handle_bind_reply(ctx: Ctx) -> None:
 
     player_id_text = ctx.args[0].strip() if ctx.args else ""
     if not player_id_text.isdigit():
-        await ctx.reply_text(K.ERR_PLAYER_ID_INVALID)
+        await ctx.reply_text(const.ERR_PLAYER_ID_INVALID)
         return
 
     player_id = int(player_id_text)
@@ -2781,7 +2858,7 @@ async def handle_unbind_player(ctx: Ctx) -> None:
 @register("main_server")
 async def handle_main_server(ctx: Ctx) -> None:
     if not ctx.args:
-        await ctx.reply_error(K.incomplete_cmd_text(ctx.head))
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 
     try:
@@ -2866,13 +2943,13 @@ async def handle_player_list(ctx: Ctx) -> None:
 @register("player_index")
 async def handle_player_index(ctx: Ctx) -> None:
     if not ctx.args or not ctx.args[0].isdigit():
-        await ctx.reply_error(K.incomplete_cmd_text(ctx.head))
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 
     index = int(ctx.args[0])
     tsugu_user = await user.load_user_or_finish(ctx.matcher, ctx.user_id)
     if index < 1 or index > len(tsugu_user.user_player_list):
-        await ctx.reply_error(K.ERR_INDEX_INVALID)
+        await ctx.reply_error(const.ERR_INDEX_INVALID)
         return
 
     error = await api.change_user(ctx.user_id, {"userPlayerIndex": index - 1})
@@ -2882,7 +2959,7 @@ async def handle_player_index(ctx: Ctx) -> None:
     await ctx.reply_text(f"已切换至绑定信息ID: {index}")
 
 
-async def _toggle_forward(ctx: Ctx, enabled: bool) -> None:
+async def _toggle_forward(ctx: Ctx, *, enabled: bool) -> None:
     error = await api.change_user(ctx.user_id, {"shareRoomNumber": enabled})
     if error:
         await ctx.reply_error(error)
@@ -2892,12 +2969,12 @@ async def _toggle_forward(ctx: Ctx, enabled: bool) -> None:
 
 @register("open_forward")
 async def handle_open_forward(ctx: Ctx) -> None:
-    await _toggle_forward(ctx, True)
+    await _toggle_forward(ctx, enabled=True)
 
 
 @register("close_forward")
 async def handle_close_forward(ctx: Ctx) -> None:
-    await _toggle_forward(ctx, False)
+    await _toggle_forward(ctx, enabled=False)
 ```
 
 - [ ] **Step 2: 写 commands/help.py**
@@ -2913,8 +2990,8 @@ USAGES 是帮助文本的唯一来源：命令的详细用法从这里读，help
 
 from __future__ import annotations
 
+from tsugu import constants as const
 
-from .. import constants as K
 from . import Ctx, register
 
 USAGES: dict[str, str] = {
@@ -2983,7 +3060,7 @@ USAGES: dict[str, str] = {
     "cutoff": f"""ycx <档位> [活动ID] [服务器]
 查询指定档位的预测线，缺省为当前活动与主服务器
 可用档线:
-{K.tier_list_text()}
+{const.tier_list_text()}
 示例:
     ycx 1000 :返回主服务器当前活动1000档位的档线与预测线
     ycx 1000 177 jp :返回日服177号活动1000档位的档线与预测线""",
@@ -3080,7 +3157,7 @@ HELP_ORDER: list[str] = [
 
 def heads_of(command: str) -> list[str]:
     """某个命令 ID 对应的全部命令头。"""
-    return [head for head, cmd in K.COMMAND_HEADS if cmd == command]
+    return [head for head, cmd in const.COMMAND_HEADS if cmd == command]
 
 
 @register("help")
@@ -3203,16 +3280,16 @@ import nonebot
 # tsugu/__init__.py 在 import 时就会调用 get_plugin_config，必须先初始化 NoneBot
 nonebot.init()
 
-from tsugu import constants as K
+from tsugu import constants as const
 from tsugu.rule import apply_shortcut, build_head_table, match_car, match_command, normalize
 
-TABLE = build_head_table(K.COMMAND_HEADS)
+TABLE = build_head_table(const.COMMAND_HEADS)
 
 
 def plan(text: str, no_space: bool = False):
     """复现分派器在「无待处理绑定流程」时的决策顺序。"""
     text = normalize(text)
-    car = match_car(text, K.CAR_KEYWORDS, K.FAKE_KEYWORDS)
+    car = match_car(text, const.CAR_KEYWORDS, const.FAKE_KEYWORDS)
     if car is not None:
         return ("car", car[0])
     matched = match_command(apply_shortcut(text), TABLE, no_space=no_space)
