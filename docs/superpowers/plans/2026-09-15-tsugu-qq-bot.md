@@ -2222,7 +2222,7 @@ async def handle_search_gacha(ctx: Ctx) -> None:
         await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 
-    if not ctx.args[0].lstrip("-").isdigit():
+    if not ctx.args[0].removeprefix("-").isdecimal():
         await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 
@@ -2234,7 +2234,7 @@ async def handle_search_gacha(ctx: Ctx) -> None:
 
 @register("gacha_simulate")
 async def handle_gacha_simulate(ctx: Ctx) -> None:
-    if not ctx.args or not ctx.args[0].isdigit():
+    if not ctx.args or not ctx.args[0].isdecimal():
         await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 
@@ -2243,7 +2243,8 @@ async def handle_gacha_simulate(ctx: Ctx) -> None:
         return
 
     times = int(ctx.args[0])
-    gacha_id = int(ctx.args[1]) if len(ctx.args) > 1 and ctx.args[1].isdigit() else None
+    has_gacha_id = len(ctx.args) > 1 and ctx.args[1].isdecimal()
+    gacha_id = int(ctx.args[1]) if has_gacha_id else None
 
     tsugu_user = await user.load_user_or_finish(ctx.matcher, ctx.user_id)
     await ctx.reply(await api.gacha_simulate(tsugu_user.main_server, times, gacha_id))
@@ -2577,7 +2578,7 @@ async def handle_search_card(ctx: Ctx) -> None:
 
 @register("card_illustration")
 async def handle_card_illustration(ctx: Ctx) -> None:
-    if not ctx.args or not ctx.args[0].isdigit():
+    if not ctx.args or not ctx.args[0].isdecimal():
         await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 
@@ -2634,7 +2635,7 @@ async def handle_search_song(ctx: Ctx) -> None:
 
 @register("song_chart")
 async def handle_song_chart(ctx: Ctx) -> None:
-    if not ctx.args or not ctx.args[0].isdigit():
+    if not ctx.args or not ctx.args[0].isdecimal():
         await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 
@@ -2743,7 +2744,7 @@ async def handle_event_stage(ctx: Ctx) -> None:
 
     event_id: int | None = None
     if positional:
-        if not positional[0].isdigit():
+        if not positional[0].isdecimal():
             await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
             return
         event_id = int(positional[0])
@@ -2781,7 +2782,7 @@ async def _resolve_event_and_server(
     rest = list(rest)
 
     event_id: int | None = None
-    if rest and rest[0].isdigit():
+    if rest and rest[0].isdecimal():
         event_id = int(rest.pop(0))
 
     server: ServerId | None = None
@@ -2797,7 +2798,7 @@ async def _resolve_event_and_server(
 
 @register("cutoff")
 async def handle_cutoff(ctx: Ctx) -> None:
-    if not ctx.args or not ctx.args[0].isdigit():
+    if not ctx.args or not ctx.args[0].isdecimal():
         await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 
@@ -2826,7 +2827,7 @@ async def handle_cutoff_all(ctx: Ctx) -> None:
 
 @register("cutoff_history")
 async def handle_cutoff_history(ctx: Ctx) -> None:
-    if not ctx.args or not ctx.args[0].isdigit():
+    if not ctx.args or not ctx.args[0].isdecimal():
         await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 
@@ -2856,7 +2857,7 @@ from . import Ctx, register
 
 @register("search_player")
 async def handle_search_player(ctx: Ctx) -> None:
-    if not ctx.args or not ctx.args[0].isdigit():
+    if not ctx.args or not ctx.args[0].isdecimal():
         await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 
@@ -3005,7 +3006,7 @@ async def handle_bind_reply(ctx: Ctx) -> None:
         return
 
     player_id_text = ctx.args[0].strip() if ctx.args else ""
-    if not player_id_text.isdigit():
+    if not player_id_text.isdecimal():
         await ctx.reply_text(const.ERR_PLAYER_ID_INVALID)
         return
 
@@ -3119,7 +3120,7 @@ async def handle_player_status(ctx: Ctx) -> None:
     server: ServerId | None = None
 
     if ctx.args:
-        if ctx.args[0].isdigit():
+        if ctx.args[0].isdecimal():
             index = int(ctx.args[0])
             if len(ctx.args) > 1:
                 try:
@@ -3151,7 +3152,7 @@ async def handle_player_list(ctx: Ctx) -> None:
 
 @register("player_index")
 async def handle_player_index(ctx: Ctx) -> None:
-    if not ctx.args or not ctx.args[0].isdigit():
+    if not ctx.args or not ctx.args[0].isdecimal():
         await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 
