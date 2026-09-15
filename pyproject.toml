@@ -106,3 +106,4 @@ pythonPlatform = "All"
 typeCheckingMode = "standard"
 venvPath = "."
 venv = ".venv"
+extraPaths = ["src/plugins"]
