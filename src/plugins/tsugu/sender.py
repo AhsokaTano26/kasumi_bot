@@ -55,10 +55,14 @@ def split_messages(items: Response, limit: int) -> list[Part]:
 def build_message(part: Part) -> Message:
     """把单个 Part 组装成 QQ 消息。
 
-    图片用 file_image 且不传 file_name：适配器的 _extract_qq_media 只在
-    file_data 超过 10MB 时才补 file_name，而 send_to_group 依据「有没有
-    file_name」在分块上传与普通上传之间二选一。我们的图片约 310KB，
-    必须走普通上传，所以这里保持 file_name 为 None。
+    图片用 file_image 产生 file_type=1 的 LocalAttachment，适配器据此识别为图片。
+
+    这里不传 file_name，但它**不影响走哪条上传路径**：
+    适配器的 `_extract_qq_media` 只在 `file_data` 超过 10MB 时才往 kwargs 里塞
+    `file_name`，`send_to_group` 再按「kwargs 里有没有 file_name」在
+    `post_group_upload`（分块）与 `post_group_files`（普通）之间二选一。
+    所以约 310KB 的图片**传不传 file_name 都走普通上传**；反过来，任何 ≥10MB 的
+    图片都会自动走分块上传，这一点本模块无法干预。
     """
     if isinstance(part, str):
         return Message(MessageSegment.text(part))
