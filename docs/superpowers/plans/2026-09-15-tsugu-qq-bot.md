@@ -3654,7 +3654,11 @@ Expected: 打印 `api 探针全部通过`（Task 5 写的那个探针，此时�
 - 概述：说明这是 Tsugu BanGDream Bot 的 QQ 官方 Bot 前端，数据与渲染来自 Tsugu 公共后端。
 - 架构：加上「QQ 官方 Bot ← WebSocket → nonebot-adapter-qq → NoneBot2 → src/plugins/tsugu/ → httpx → Tsugu 后端」这条链路，并说明**为什么不使用 `on_command`**（群里 `@bot` 会让 `message[0]` 成为 `MentionUser`，`TrieRule` 不匹配）。
 - 现有插件：`tsugu`（唯一插件），并逐个说明 `rule.py` / `sender.py` / `api.py` / `user.py` / `db.py` / `commands/` 的职责。
-- 环境文件：更新 `.env` 的实际内容，特别标注 `DRIVER` 必须包含 `~websockets`，否则 QQ 适配器启动即失败。
+- 环境文件：更新 `.env` 的实际内容，并写明 `DRIVER` 里的 `~websockets` 的**真实触发条件**
+  （Task 11 实测修正，原先这里写的「不写就启动即失败」**是错的**）：适配器的检查是
+  `any(bot.use_websocket for bot in qq_config.qq_bots)`，而 `qq_bots` 默认为空——
+  所以**未配置 `QQ_BOTS` 的空仓库不带 `~websockets` 也能正常启动**，
+  该要求只在 `QQ_BOTS` 填好之后、即**真正部署时**才生效。CLAUDE.md 里要写清这个条件。
 - **部署约束（必须写进 CLAUDE.md，否则是隐式依赖）**：
   - **gunicorn 必须单 worker**。绑定流程的待处理状态 `user.pending` 是**进程内存**（`user.py`），
     多 worker 时用户的下一条消息可能落到另一个进程，绑定会**间歇性静默中断**。
@@ -3678,7 +3682,8 @@ git commit -m "docs: 更新 CLAUDE.md 以反映 Tsugu 改造后的架构"
 
 向用户报告：
 - 分支名与提交列表
-- `.env.prod` 需要填的变量（`QQ_BOT_ID` / `QQ_BOT_TOKEN` / `QQ_BOT_SECRET`），以及 `DRIVER` 必须带 `~websockets`
+- `.env.prod` 需要填的变量（`QQ_BOT_ID` / `QQ_BOT_TOKEN` / `QQ_BOT_SECRET`），
+  以及一旦 `QQ_BOTS` 非空，`DRIVER` 就必须带 `~websockets`（空仓库下不带也能启动，见 Task 11 更正）
 - 真机联调待办：把 Bot 接入 QQ 官方沙箱，逐条验证规格 5.1 / 5.2 / 5.3 的命令
 - 已知限制（规格第 13 节）：群聊车牌收不到、单次回复 5 条上限、依赖公共后端、与官方 Tsugu 共用 `red` 命名空间、群级抽卡开关无权限校验
 
