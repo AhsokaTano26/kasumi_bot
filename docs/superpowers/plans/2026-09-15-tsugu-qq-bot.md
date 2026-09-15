@@ -48,7 +48,7 @@
 
 1. `bot.send(event, msg)` 自动填 `msg_id=event.id`，并对同一事件内每次发送自增 `event._reply_seq` 作为 `msg_seq`。**不要自己维护 `msg_seq`**。
 2. `event.get_message().extract_plain_text()` 会剥掉 `@bot`，但保留前导空格，必须 `.strip()`。
-3. `MessageSegment.file_image(data: bytes)` 且**不要传 `file_name`** —— 传了会走 `post_group_upload` 的分块上传分支；不传才走 `post_group_files`（约 310KB 的图片走后者，正确）。
+3. `MessageSegment.file_image(data: bytes)` 产生 `file_type=1` 的 `LocalAttachment`，即图片。上传路径**不取决于是否传 `file_name`**：`_extract_qq_media` 只在 `file_data` 超过 10MB 时才往 kwargs 塞 `file_name`，`send_to_group` 再按该键是否存在在 `post_group_upload`（分块）与 `post_group_files`（普通）之间二选一。所以约 310KB 的图片两条路都会走普通上传；反之 ≥10MB 的图片会自动走分块上传，模块层无法干预。
 4. `tsugu_api_core` 的异常分类：HTTP 200 正常返回；400 → `BadRequestError`；404/409/422/500 → `FailedException`（有 `.status_code` 和 `.data`）；其他 → `HTTPStatusError`。网络/超时异常直接向上抛。
 5. `tsugu_api_async.settings` 的 `use_easy_bg` 与 `compress` 是**全局设置**，由库自动注入每次请求，业务代码不需要逐次传参。
 6. 公共后端 `tsugubot.com:8080` 的 `/user/*` 与 `/station/*` 均已挂载（实测 `getUserData` 空 body 返回 400 参数错误而非 404）。
@@ -1108,10 +1108,14 @@ def split_messages(items: Response, limit: int) -> list[Part]:
 def build_message(part: Part) -> Message:
     """把单个 Part 组装成 QQ 消息。
 
-    图片用 file_image 且不传 file_name：适配器的 _extract_qq_media 只在
-    file_data 超过 10MB 时才补 file_name，而 send_to_group 依据「有没有
-    file_name」在分块上传与普通上传之间二选一。我们的图片约 310KB，
-    必须走普通上传，所以这里保持 file_name 为 None。
+    图片用 file_image 产生 file_type=1 的 LocalAttachment，适配器据此识别为图片。
+
+    这里不传 file_name，但**这不影响走哪条上传路径**（我一开始把因果关系写反了）：
+    适配器的 `_extract_qq_media` 只在 `file_data` 超过 10MB 时才往 kwargs 里塞
+    `file_name`，`send_to_group` 再按「kwargs 里有没有 file_name」在
+    `post_group_upload`（分块）与 `post_group_files`（普通）之间二选一。
+    所以约 310KB 的图片**传不传 file_name 都走普通上传**；反过来，任何 ≥10MB 的
+    图片都会自动走分块上传，这一点本模块无法干预。
     """
     if isinstance(part, str):
         return Message(MessageSegment.text(part))
@@ -1208,7 +1212,8 @@ assert isinstance(m, Message) and m[0].type == "text"
 m = build_message(PNG)
 assert m[0].type == "file_image", m[0].type
 assert m[0].data["content"] == PNG
-assert m[0].data["file_name"] is None, "file_name 必须是 None，否则会走分块上传"
+# file_name 只是记录当前调用风格；它并不影响上传路径（见 build_message 的说明）
+assert m[0].data["file_name"] is None
 
 print("sender 探针全部通过")
 ```
