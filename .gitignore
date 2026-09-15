@@ -172,3 +172,8 @@ test_*.py
 *.tmp
 *.bak
 *.backup
+
+### Secrets ###
+# .env 保留在版本库里（只有 DRIVER / SQLALCHEMY_DATABASE_URL，无密钥）
+.env.prod
+.env.dev

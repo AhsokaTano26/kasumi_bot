@@ -1,6 +1,9 @@
 # ----- Project -----
 
-# .env.*
+# 生产环境靠 docker-compose 的 env_file 在运行时注入 .env.prod，不能烤进镜像；
+# .env 仍要 COPY 进去：nonebot.init() 默认读它取 DRIVER / SQLALCHEMY_DATABASE_URL。
+.env.prod
+.env.dev
 .dockerignore
 Dockerfile
 docker-compose.yml
