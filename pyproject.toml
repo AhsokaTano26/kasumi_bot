@@ -93,6 +93,8 @@ ignore = [
     "ANN401",  # any-type
     "COM812",  # missing-trailing-comma
     "PLC0415", # import-outside-top-level
+    "TID252",  # relative-imports  # nonebot 把插件按 src.plugins.tsugu 加载，
+               # src/plugins 不在 sys.path 上，绝对导入 from tsugu import x 运行时必炸
 ]
 allowed-confusables = ["，", "。", "“", "”", "：", "；", "？", "！", "【", "】", "《", "》", "…", "—", "（", "）", "、"]
 
@@ -106,4 +108,3 @@ pythonPlatform = "All"
 typeCheckingMode = "standard"
 venvPath = "."
 venv = ".venv"
-extraPaths = ["src/plugins"]

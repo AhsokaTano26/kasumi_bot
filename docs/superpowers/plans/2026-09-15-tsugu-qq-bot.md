@@ -2111,13 +2111,13 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from tsugu.sender import Response, send_result
+from ..sender import Response, send_result
 
 if TYPE_CHECKING:
     from nonebot.adapters.qq import Bot
     from nonebot.matcher import Matcher
 
-    from tsugu.user import PendingBind
+    from ..user import PendingBind
 
 
 @dataclass
@@ -2177,6 +2177,24 @@ def register(command: str) -> Callable[[Handler], Handler]:
         return func
 
     return decorator
+
+
+def _load_command_modules() -> None:
+    """导入本包下所有命令模块，触发它们的 @register 装饰器。
+
+    必须放在 Ctx / register 定义之后：子模块会 `from . import Ctx, register`，
+    提前导入会拿到尚未定义的名字。用 iter_modules 自动发现而不是逐条 import，
+    这样以后新增命令模块不用回来改这里。
+    """
+    from importlib import import_module
+    from pkgutil import iter_modules
+
+    for module in iter_modules(__path__):
+        if not module.name.startswith("_"):
+            import_module(f"{__name__}.{module.name}")
+
+
+_load_command_modules()
 ```
 
 - [ ] **Step 5: 写 commands/gacha.py**
@@ -2186,9 +2204,8 @@ def register(command: str) -> Callable[[Handler], Handler]:
 
 from __future__ import annotations
 
-from tsugu import api, db, user
-from tsugu import constants as const
-
+from .. import api, db, user
+from .. import constants as const
 from . import Ctx, register
 
 
@@ -2281,7 +2298,12 @@ from nonebot import get_plugin_config, on_message
 # ruff 的 TC002 认不出 @tsugu.handle() 是运行时求值装饰器，故显式豁免。
 from nonebot.adapters.qq import Bot  # noqa: TC002
 from nonebot.adapters.qq.event import QQMessageEvent  # noqa: TC002
-from nonebot.plugin import PluginMetadata
+from nonebot.plugin import PluginMetadata, require
+
+# 必须早于下面任何相对导入：`from .commands import ...` 会连锁 import 到 db，
+# 而 db 依赖 orm 的 Model / get_session。缺这一步会抛
+# RuntimeError: Cannot detect caller plugin（orm 在导入期调 localstore 找调用方插件）。
+require("nonebot_plugin_orm")
 
 from . import car, user
 from . import constants as const
@@ -2522,9 +2544,8 @@ git commit -m "feat: 接入消息分派器、车牌监听与群级抽卡开关"
 
 from __future__ import annotations
 
-from tsugu import api, user
-from tsugu import constants as const
-
+from .. import api, user
+from .. import constants as const
 from . import Ctx, register
 
 
@@ -2556,9 +2577,8 @@ async def handle_card_illustration(ctx: Ctx) -> None:
 
 from __future__ import annotations
 
-from tsugu import api, user
-from tsugu import constants as const
-
+from .. import api, user
+from .. import constants as const
 from . import Ctx, register
 
 
@@ -2581,9 +2601,8 @@ async def handle_search_character(ctx: Ctx) -> None:
 
 from __future__ import annotations
 
-from tsugu import api, user
-from tsugu import constants as const
-
+from .. import api, user
+from .. import constants as const
 from . import Ctx, register
 
 
@@ -2683,9 +2702,8 @@ git commit -m "feat: 新增查卡、查角色与查曲系列命令"
 
 from __future__ import annotations
 
-from tsugu import api, user
-from tsugu import constants as const
-
+from .. import api, user
+from .. import constants as const
 from . import Ctx, register
 
 META_FLAG = "-m"
@@ -2734,9 +2752,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from tsugu import api, user
-from tsugu import constants as const
-
+from .. import api, user
+from .. import constants as const
 from . import Ctx, register
 
 if TYPE_CHECKING:
@@ -2818,9 +2835,8 @@ async def handle_cutoff_history(ctx: Ctx) -> None:
 
 from __future__ import annotations
 
-from tsugu import api, user
-from tsugu import constants as const
-
+from .. import api, user
+from .. import constants as const
 from . import Ctx, register
 
 
@@ -2853,8 +2869,7 @@ async def handle_search_player(ctx: Ctx) -> None:
 
 from __future__ import annotations
 
-from tsugu import api
-
+from .. import api
 from . import Ctx, register
 
 
@@ -2917,9 +2932,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from tsugu import api, user
-from tsugu import constants as const
-
+from .. import api, user
+from .. import constants as const
 from . import Ctx, register
 
 if TYPE_CHECKING:
@@ -3164,8 +3178,7 @@ USAGES 是帮助文本的唯一来源：命令的详细用法从这里读，help
 
 from __future__ import annotations
 
-from tsugu import constants as const
-
+from .. import constants as const
 from . import Ctx, register
 
 USAGES: dict[str, str] = {
