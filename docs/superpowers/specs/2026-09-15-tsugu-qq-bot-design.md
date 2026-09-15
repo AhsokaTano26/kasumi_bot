@@ -44,14 +44,15 @@ Tsugu 是**前后端分离**的：
 - 用户数据走 Tsugu 用户数据 API，`platform="red"`。
 - QQ 官方 Bot 特有的触发与发送适配。
 - 车牌自动转发（消息级监听）。
+- 群级抽卡开关，存本地 SQLite。
 
 ### 2.2 不做
 
 - 单元测试、集成测试、路由守卫、权限系统（明确要求精简）。
-- 本地数据库 / ORM。用户数据全部托管在 Tsugu 后端，因此移除 `nonebot-plugin-orm`、`alembic`、`sqlalchemy`、`aiosqlite` 依赖，并删除 `data/db.sqlite3`。
+- 用本地库存用户数据。绑定、主服务器、显示服务器、车牌开关等全部托管在 Tsugu 后端（见 6.1），本地库只存群级设置这一张表（见 6.5）。
 - 自建 Tsugu 后端（只通过配置项支持切换地址）。
 - article API（`/eventPreview/*`、`/eventReport/*`）：Tsugu 前端本身也没有暴露对应命令。
-- 频道级开关（`tsugu_gacha` / `tsugu_run`）：QQ 官方 Bot 无此概念。
+- `tsugu_swc`（试验性的频道总开关）：mainline 里就标注为试验性，且交互方式（`tsugu_swc off @bot`）在 QQ 官方 Bot 下很别扭。
 - 保留任何现有插件。`src/plugins/` 下 `bangdream`、`live`、`proactive`、`basic`、`test` 全部删除。
 
 ## 3. 架构与数据流
@@ -71,16 +72,18 @@ src/plugins/tsugu/
    ├─ sender.py   [{"type","string"}] → QQ Message，多图拆分与条数上限
    ├─ api.py      tsugu-api-python 封装 + 错误文案映射
    ├─ car.py      车牌自动转发
+   ├─ db.py       群级设置（本地 SQLite）
    └─ config.py   Pydantic 配置
-   │  httpx POST JSON
-   ▼
-Tsugu 后端  http://tsugubot.com:8080
-   ├─ /searchCard /searchSong /cutoffDetail …  查询 API
-   ├─ /user/*     用户数据 API
-   └─ /station/*  车站 API
+   │
+   ├─ httpx POST JSON ──────────────► Tsugu 后端  http://tsugubot.com:8080
+   │                                     ├─ /searchCard /searchSong /cutoffDetail …  查询 API
+   │                                     ├─ /user/*     用户数据 API
+   │                                     └─ /station/*  车站 API
+   │
+   └─ SQLAlchemy ────────────────────► data/db.sqlite3（仅 tsugu_group_settings 一张表）
 ```
 
-**本地无状态**：不落任何数据库，用户数据以 `platform="red"` + QQ openid 为键存在 Tsugu 后端。
+**用户数据不在本地**：以 `platform="red"` + QQ openid 为键存在 Tsugu 后端。本地 SQLite 只承载群级设置。
 
 ## 4. 触发层（`rule.py`）
 
@@ -184,7 +187,22 @@ text = event.get_message().extract_plain_text().strip()
 
 所有 `change_user_data` 返回 `{"status": "failed"}` 时，把 `data` 字段原样回给用户。
 
-### 5.3 帮助
+### 5.3 群级设置
+
+只有一项：本群抽卡开关。设置存在本地 SQLite，按 `group_openid` 索引。
+
+| 命令头（别名） | 参数 | 行为 | 回复 |
+|---|---|---|---|
+| `抽卡` | `<on\|off\|开启\|关闭>` | 写入本群开关 | `开启成功` / `关闭成功` / `无效指令` |
+| `开启抽卡` | — | 等价于 `抽卡 on` | `开启成功` |
+| `关闭抽卡` | — | 等价于 `抽卡 off` | `关闭成功` |
+
+- 只对群消息有效。C2C（私聊）没有群概念，抽卡始终可用，收到这三个命令时回复 `该指令仅在群聊中可用`。
+- `抽卡模拟` 在执行前查本群设置，关闭时直接回复 `抽卡功能已关闭`，不调后端。
+- 命令头匹配按长度降序，`抽卡模拟` 会先于 `抽卡` 命中，两者不冲突。
+- **不做权限校验**：QQ 官方 Bot 的群消息事件（`GroupAtMessageCreateEvent`）不携带成员角色字段（只有频道/guild 事件才有 `roles`），无法判断发送者是否为群管理员。因此任何群成员都可开关。mainline 的权限校验依赖 Koishi 的 `session.authority`/`roles`，QQ 官方平台没有对等物。若日后要收紧，可在这一处加 `SUPERUSERS` 白名单判断。
+
+### 5.4 帮助
 
 `help` / `帮助` `[命令名]`。无参数时列出全部命令头与一行说明；带命令名时输出该命令的完整用法、参数与示例。帮助文本集中在 `commands/help.py` 的一张表里，命令注册与帮助共用同一份元数据，避免两处漂移。
 
@@ -261,6 +279,25 @@ text = event.get_message().extract_plain_text().strip()
 ```
 
 无绑定时第一段为 `未绑定任何玩家`，后续三行照常输出。
+
+### 6.5 本地存储
+
+用户数据不落本地库（见 6.1），但**群级设置需要**，因为 Tsugu 用户数据 API 以用户为键，表达不了「本群」这个维度。
+
+用 `nonebot-plugin-orm` 建一张表：
+
+```python
+class GroupSetting(Model):
+    __tablename__ = "tsugu_group_settings"
+    group_openid: Mapped[str] = mapped_column(String(64), primary_key=True)
+    gacha_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+```
+
+读取语义：查不到该群的行时，视为默认值 `gacha_enabled=True`，**不预先插行**（只读命令不应该写库）。写入时才 upsert。
+
+建表机制：`.env` 的 `ALEMBIC_STARTUP_CHECK=False` 让 `nonebot_plugin_orm` 在启动时跑 `migrate.sync revision`，从模型自动生成并应用迁移，无需手写迁移脚本。
+
+**关于现有库**：`data/db.sqlite3` 里只有 `alembic_version` 和 `live_events`（旧 `live` 插件的 RSS 缓存，无保留价值），`data/nonebot_plugin_orm/migrations/live/` 是空的命名空间目录。因此直接删除这两者，让 ORM 用新模型从零重建，避免留着引用已删模型的陈旧迁移。
 
 ## 7. 发送层（`sender.py`）
 
@@ -348,13 +385,14 @@ src/plugins/tsugu/
 ├── sender.py            [{"type","string"}] → Message，条数上限与拆分
 ├── user.py              用户数据读写、绑定/解绑流程、玩家状态
 ├── car.py               车牌自动转发消息监听器
+├── db.py                ORM 模型（GroupSetting）与读写函数
 └── commands/
     ├── __init__.py      汇总注册，导出命令元数据供 help 使用
     ├── card.py          查卡、查卡面
     ├── character.py     查角色
     ├── event.py         查活动、查试炼
     ├── song.py          查曲、查谱面、随机曲、查询分数表
-    ├── gacha.py         查卡池、抽卡模拟
+    ├── gacha.py         查卡池、抽卡模拟、抽卡开关
     ├── cutoff.py        ycx、ycxall、lsycx
     ├── player.py        查玩家
     ├── station.py       ycm
@@ -372,19 +410,26 @@ dependencies = [
     "nonebot2[httpx]>=2.5.0",
     "nonebot2[websockets]>=2.5.0",
     "nonebot-adapter-qq>=1.7.0",
+    "nonebot-plugin-orm[sqlite]>=0.8.0",
     "tsugu-api-python[httpx]>=1.5.10",
 ]
 ```
 
-移除：`nonebot-plugin-apscheduler`、`nonebot-plugin-orm[sqlite]`。**保留 `nonebot2[websockets]`** —— QQ 适配器连接 QQ 网关依赖它提供的 `WebSocketClientMixin` 驱动。同步重生成 `requirements.txt`，删除 `data/db.sqlite3`。
+**移除仅 `nonebot-plugin-apscheduler`**（旧 `live` 插件的定时爬取）。**保留 `nonebot2[websockets]`** —— QQ 适配器连接 QQ 网关依赖它提供的 `WebSocketClientMixin` 驱动。**保留 `nonebot-plugin-orm[sqlite]`** —— 群级设置需要（见 6.5），同时带出 `nonebot-plugin-localstore`。
 
-同时修正 `.env`：
+移除 `beautifulsoup4`（旧 `live` 插件的 RSS 解析）等随之不再需要的传递依赖，同步重生成 `requirements.txt`。
+
+`.env` 只需改一行 —— `DRIVER` 补上 websockets：
 
 ```
+ENVIRONMENT=dev
 DRIVER=~fastapi+~httpx+~websockets
+LOCALSTORE_USE_CWD=true
+SQLALCHEMY_DATABASE_URL=sqlite+aiosqlite:///data/db.sqlite3
+ALEMBIC_STARTUP_CHECK=False
 ```
 
-并删除已不再使用的 `SQLALCHEMY_DATABASE_URL`、`ALEMBIC_STARTUP_CHECK`、`LOCALSTORE_USE_CWD`。
+`LOCALSTORE_USE_CWD`、`SQLALCHEMY_DATABASE_URL`、`ALEMBIC_STARTUP_CHECK` 三个都**保留**：前者把 migrations 与数据目录固定在项目内，后两者是 ORM 建表所必需。
 
 ## 12. 验证方式
 
@@ -393,8 +438,10 @@ DRIVER=~fastapi+~httpx+~websockets
 1. `ruff check src/` 与 `ruff format --check src/` 通过。
 2. `pyright src/` 通过。
 3. `nb run --reload` 能正常启动，插件加载无报错。
-4. 用 `python -c` 直接调用 `api.py` 的各封装函数，对公共后端发真实请求，确认返回结构被正确解析。
-5. 真机联调：把 Bot 连上 QQ 官方沙箱，逐条验证 5.1 与 5.2 的命令。
+4. 启动后 `data/db.sqlite3` 出现 `tsugu_group_settings` 表，且不含残留的 `live_events`。
+5. 用 `python -c` 直接调用 `api.py` 的各封装函数，对公共后端发真实请求，确认返回结构被正确解析。
+6. 用构造的假 QQ 事件对象走一遍 `rule.py` 的分派逻辑，确认 `@bot 查卡 1399`、`查卡947`（开关开/关两种）、`日服模式`、`国服玩家状态`、`123456 大分车` 各自的匹配结果符合预期。这是本项目最容易出错的一环，值得单独验。
+7. 真机联调：把 Bot 连上 QQ 官方沙箱，逐条验证 5.1、5.2、5.3 的命令。
 
 ## 13. 已知限制
 
@@ -403,3 +450,4 @@ DRIVER=~fastapi+~httpx+~websockets
 3. **依赖第三方公共服务**。`tsugubot.com:8080` 的可用性、限流、数据准确性不由本项目控制。后端地址可配置，便于日后切到自建实例。
 4. **`platform="red"` 与官方 Tsugu QQ Bot 共用用户数据命名空间**。这是刻意的设计（一次绑定多处使用），但意味着两边的绑定与设置会互相可见、互相影响。
 5. `tsugu-api-python` 与 Tsugu 后端均非本项目维护，接口若变更需要跟进。
+6. **群级抽卡开关不做权限校验**，任何群成员都能开关。QQ 官方 Bot 的群消息事件不提供成员角色字段，做不到 mainline 那种「仅管理员」判断。详见 5.3。
