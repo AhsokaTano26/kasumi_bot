@@ -1,4 +1,9 @@
-"""静态数据表与文案常量。此模块不依赖 NoneBot 运行时，可被探针脚本直接 import。"""
+"""静态数据表与文案常量。
+
+本模块的内容本身不依赖 NoneBot 运行时，但通过 `import tsugu.constants` 访问它时
+会先执行 `tsugu/__init__.py`，那里会调用 `get_plugin_config()`。因此探针脚本必须先
+`nonebot.init()` 再 import，否则抛 `NoneBot has not been initialized`。
+"""
 
 from __future__ import annotations
 
@@ -142,12 +147,28 @@ CAR_KEYWORDS: list[str] = [
     "大分a",
     "大分s",
     "长途",
+    "e3",
+    "e长",
+    "s3",
+    "s长",
+    "5级",
+    "满级",
+    "130",
+    "150",
     "生日车",
     "军训",
     "禁fc",
 ]
 
 FAKE_KEYWORDS: list[str] = [
+    "🦐",
+    "虾",
+    "melt",
+    "孜然",
+    "孑然妒火",
+    "周回",
+    "实效",
+    "删语音",
     "114514",
     "野兽",
     "恶臭",
@@ -265,3 +286,42 @@ COMMAND_HEADS: list[tuple[str, str]] = [
     ("help", "help"),
     ("帮助", "help"),
 ]
+
+ALIAS_FIELDS: dict[str, str] = {
+    # 配置字段名 -> 命令 ID
+    # 用户在 .env 里为某个命令追加的别名，分派器会把它们并进命令头表。
+    # 这张映射是必须的：配置字段名与命令 ID 对不上的有 7 处
+    # （switch_index/player_index、default_servers/display_servers、
+    #  ycx/cutoff、ycx_all/cutoff_all、lsycx/cutoff_history），
+    # 靠改名字推导会漏掉它们。
+    "tsugu_open_forward_aliases": "open_forward",
+    "tsugu_close_forward_aliases": "close_forward",
+    "tsugu_bind_player_aliases": "bind_player",
+    "tsugu_unbind_player_aliases": "unbind_player",
+    "tsugu_main_server_aliases": "main_server",
+    "tsugu_default_servers_aliases": "display_servers",
+    "tsugu_player_status_aliases": "player_status",
+    "tsugu_player_list_aliases": "player_list",
+    "tsugu_switch_index_aliases": "player_index",
+    "tsugu_ycm_aliases": "ycm",
+    "tsugu_search_player_aliases": "search_player",
+    "tsugu_search_card_aliases": "search_card",
+    "tsugu_card_illustration_aliases": "card_illustration",
+    "tsugu_search_character_aliases": "search_character",
+    "tsugu_search_event_aliases": "search_event",
+    "tsugu_search_song_aliases": "search_song",
+    "tsugu_song_chart_aliases": "song_chart",
+    "tsugu_song_random_aliases": "song_random",
+    "tsugu_song_meta_aliases": "song_meta",
+    "tsugu_event_stage_aliases": "event_stage",
+    "tsugu_search_gacha_aliases": "search_gacha",
+    "tsugu_ycx_aliases": "cutoff",
+    "tsugu_ycx_all_aliases": "cutoff_all",
+    "tsugu_lsycx_aliases": "cutoff_history",
+    "tsugu_gacha_simulate_aliases": "gacha_simulate",
+}
+"""25 个可配置别名字段与命令 ID 的对应关系。
+
+`gacha_switch` / `gacha_on` / `gacha_off` / `help` 没有对应的别名字段，
+别名表里也查不到，属正常。
+"""

@@ -12,7 +12,7 @@ __plugin_meta__ = PluginMetadata(
     description="Tsugu BanGDream Bot 的 QQ 官方 Bot 前端",
     usage="发送「help」查看全部指令",
     config=Config,
-    supported_adapters={"~onebot.v11", "~qq"},
+    supported_adapters={"~qq"},
 )
 
 config = get_plugin_config(Config)
