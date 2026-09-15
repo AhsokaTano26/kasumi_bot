@@ -2032,7 +2032,9 @@ async def maybe_forward(event: Any, user_id: str, text: str) -> bool:
     from .config import Config
 
     config = get_plugin_config(Config)
-    user_name = getattr(event, "username", None) or user_id
+    # 昵称挂在 event.author.username 上（GroupMemberAuthor 与 FriendAuthor 都有），
+    # 事件本身没有顶层 username 字段
+    user_name = getattr(getattr(event, "author", None), "username", None) or user_id
     error = await api.submit_room_number(
         number,
         text,
@@ -2336,25 +2338,25 @@ import nonebot
 # tsugu/__init__.py 在 import 时就会调用 get_plugin_config，必须先初始化 NoneBot
 nonebot.init()
 
-from nonebot.adapters.qq.event import GroupAtMessageCreateEvent
+from nonebot.adapters.qq.event import C2CMessageCreateEvent, GroupAtMessageCreateEvent
 
 from tsugu import constants as const
 from tsugu.rule import build_head_table, get_group_openid, match_command, normalize
 
 table = build_head_table(const.COMMAND_HEADS)
 
+# GroupAtMessageCreateEvent 的必填字段是 id / content / timestamp / group_id /
+# group_openid / author，其中 author（GroupMemberAuthor）还要 id / bot / member_openid。
 raw = {
     "id": "GROUP_AT_MESSAGE_CREATE:test",
-    "author": {"id": "USER_OPENID", "member_openid": "MEMBER_OPENID"},
+    "author": {"id": "USER_OPENID", "bot": False, "member_openid": "MEMBER_OPENID"},
     "content": "<@!BOT_OPENID> 查卡 1399",
     "group_openid": "GROUP_OPENID",
     "group_id": "GROUP_ID",
     "timestamp": "2026-09-15T12:00:00+08:00",
 }
 
-event = GroupAtMessageCreateEvent.model_validate(raw) if hasattr(
-    GroupAtMessageCreateEvent, "model_validate"
-) else GroupAtMessageCreateEvent.parse_obj(raw)
+event = GroupAtMessageCreateEvent.model_validate(raw)
 
 # @bot 被剥掉，留下的前导空格由 normalize 去掉
 plain = event.get_message().extract_plain_text()
@@ -2366,8 +2368,23 @@ assert text == "查卡 1399", repr(text)
 m = match_command(text, table)
 assert m is not None and m.command == "search_card" and m.args == ["1399"], m
 
-# 群 openid 能取到，私聊取不到
-assert get_group_openid(event) == "GROUP_OPENID"
+# 群聊能取到 group_openid
+assert get_group_openid(event) == "GROUP_OPENID", get_group_openid(event)
+
+# 私聊事件取不到 group_openid（群级抽卡开关要靠这个判据区分场景）
+c2c = C2CMessageCreateEvent.model_validate(
+    {
+        "id": "C2C_MESSAGE_CREATE:test",
+        "author": {"id": "USER_OPENID", "user_openid": "USER_OPENID"},
+        "content": "查卡 1399",
+        "timestamp": "2026-09-15T12:00:00+08:00",
+    }
+)
+assert get_group_openid(c2c) is None, get_group_openid(c2c)
+
+# 昵称挂在 author.username 上，不在事件顶层——车牌转发取用户名靠它
+assert getattr(event.author, "username", None) is None  # 本样本没给 username
+assert getattr(c2c.author, "username", None) is None
 
 print("event 探针全部通过：", repr(plain), "->", repr(text), "->", m.command, m.args)
 ```
