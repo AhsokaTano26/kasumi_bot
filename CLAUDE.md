@@ -18,11 +18,11 @@ nb run --reload
 pip install -r requirements.txt
 
 # Lint and format
-ruff check src/
-ruff format src/
+ruff check src/ qq_config.py
+ruff format src/ qq_config.py
 
 # Type-check
-pyright src/
+pyright src/ qq_config.py
 
 # Docker build and run
 docker-compose up --build
@@ -109,6 +109,8 @@ Two consequences worth knowing before writing code here:
 
 Other deliberate `ignore` entries, each with its reason recorded inline in `pyproject.toml`: `E402` (NoneBot's `require()` must run before later imports), `B008` (NoneBot's `Depends()` in argument defaults), `ANN202`, `ANN401`, `COM812`, `PLC0415`.
 
+**Check scope:** the commands above cover `src/` **and** `qq_config.py`. That second path is easy to forget, and it is not decorative — the file sits at the repo root, so a bare `pyright src/` never sees it, and it was carrying four real type errors until they were found by hand. One file is deliberately still excluded: `docker/_main.py` imports `bot`, which is generated inside the Docker image, so pyright reports `reportMissingImports` for it in any local checkout. Treat that one as expected noise rather than something to silence with an ignore.
+
 ## Adding a New Command
 
 1. Add the command ID and its heads to `COMMAND_HEADS` in `src/plugins/tsugu/constants.py` (longer heads first — matching is longest-prefix). If the command is user-facing, it will show up in `help` automatically.
@@ -139,7 +141,7 @@ There are three independent checks, not one:
 
 `~fastapi+~httpx+~websockets` satisfies all three, which is why it is this project's default. **A pure webhook deployment may drop `~websockets`.**
 
-Where `use_websocket` comes from matters: `qq_config.py` applies `bot.setdefault("use_websocket", True)`, so a webhook deployment **must state `"use_websocket": false` explicitly** in `QQ_BOTS`. The flat `QQ_BOT_ID` / `QQ_BOT_TOKEN` / `QQ_BOT_SECRET` form always yields a WebSocket bot and cannot express webhook mode.
+Where `use_websocket` comes from matters: `qq_config.py` applies `bot.setdefault("use_websocket", <default>)`, so **silence means WebSocket mode**. A webhook deployment must therefore say so explicitly, either per bot in `QQ_BOTS` (`"use_websocket": false`) or once for all of them with the flat `QQ_USE_WEBSOCKET=false`. The latter accepts `true/false`, `1/0`, `yes/no`, `on/off` and raises on anything else rather than silently keeping WebSocket mode on; a bot that sets the field itself in `QQ_BOTS` keeps its own value.
 
 Note when this bites: with no bots configured all three checks are skipped, so a bare local checkout boots under any driver. The failure surfaces only once `QQ_BOTS` is populated — the worst time to discover it.
 
