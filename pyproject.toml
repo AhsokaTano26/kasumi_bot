@@ -3,7 +3,7 @@ name = "kasumi_bot"
 version = "0.1.0"
 description = "kasumi_bot"
 readme = "README.md"
-requires-python = ">=3.9, <4.0"
+requires-python = ">=3.10, <4.0"
 dependencies = [
     "nonebot2[fastapi]>=2.5.0",
     "nonebot2[httpx]>=2.5.0",
@@ -33,7 +33,7 @@ nonebot-adapter-qq = [
 "@local" = []
 [tool.ruff]
 line-length = 88
-target-version = "py39"
+target-version = "py310"
 
 [tool.ruff.format]
 line-ending = "lf"
@@ -101,6 +101,6 @@ keep-runtime-typing = true
 
 [tool.pyright]
 # For Pylance/Pyright configurations, see https://microsoft.github.io/pyright/#/configuration.
-pythonVersion = "3.9"
+pythonVersion = "3.10"
 pythonPlatform = "All"
 typeCheckingMode = "standard"
