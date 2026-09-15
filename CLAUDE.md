@@ -124,20 +124,24 @@ The dispatcher in `__init__.py` needs no changes — it looks the handler up in 
 - `.env.dev` — local dev overrides (`LOG_LEVEL=DEBUG`)
 - `.env.prod` — production secrets (injected at deploy time). Requires `QQ_BOT_ID`, `QQ_BOT_TOKEN`, `QQ_BOT_SECRET`.
 
-**`DRIVER` must include `~websockets`:**
+**`DRIVER` must match your event-delivery mode.** The adapter does not require WebSockets unconditionally — it picks its requirements from each bot's `use_websocket` flag:
 
-```dotenv
-DRIVER=~fastapi+~httpx+~websockets
-```
+| Mode | `use_websocket` | Driver must provide | Sufficient `DRIVER` |
+| --- | --- | --- | --- |
+| WebSocket (adapter default) | `true` | `WebSocketClientMixin` + `HTTPClientMixin` | `~fastapi+~httpx+~websockets` |
+| Webhook | `false` | `ASGIMixin` + `HTTPClientMixin` | `~fastapi+~httpx` |
 
-The QQ adapter connects to the platform over a WebSocket, and refuses to set up on a driver without `WebSocketClientMixin`:
+There are three independent checks, not one:
 
-```
-RuntimeError: Current driver ~fastapi+~httpx does not support websocket client!
-QQ Adapter need a WebSocketClient Driver to work.
-```
+- **always** — `HTTPClientMixin` (`~httpx`), else `... does not support http client requests!`
+- **if any bot sets `use_websocket: true`** — `WebSocketClientMixin` (`~websockets`), else `... does not support websocket client! QQ Adapter need a WebSocketClient Driver to work.`
+- **if any bot sets `use_websocket: false`** — `ASGIMixin` (`~fastapi`), else `... does not support ASGI server! QQ Adapter need a ASGI Driver to receive webhook.`
 
-Note when this bites: the adapter only enforces it when `QQ_BOTS` is non-empty (`any(bot.use_websocket for bot in qq_config.qq_bots)`). With no `QQ_BOT_ID` configured — as in a bare local checkout — the check is skipped and the bot boots fine **without** `~websockets`. The failure therefore surfaces only once you deploy with credentials, which is the worst time to discover it. Keep `~websockets` in `DRIVER` everywhere.
+`~fastapi+~httpx+~websockets` satisfies all three, which is why it is this project's default. **A pure webhook deployment may drop `~websockets`.**
+
+Where `use_websocket` comes from matters: `qq_config.py` applies `bot.setdefault("use_websocket", True)`, so a webhook deployment **must state `"use_websocket": false` explicitly** in `QQ_BOTS`. The flat `QQ_BOT_ID` / `QQ_BOT_TOKEN` / `QQ_BOT_SECRET` form always yields a WebSocket bot and cannot express webhook mode.
+
+Note when this bites: with no bots configured all three checks are skipped, so a bare local checkout boots under any driver. The failure surfaces only once `QQ_BOTS` is populated — the worst time to discover it.
 
 ## Design Docs
 
