@@ -782,7 +782,7 @@ cd /Users/tano/Documents/GitHub/personal/kasumi_bot
 tail -20 "$CLAUDE_JOB_DIR/tmp/boot.log"
 ```
 
-Expected: 日志里出现 `Succeeded to import "tsugu"`，无报错。
+Expected: 日志里出现 `Succeeded to load plugin "tsugu" from "src.plugins.tsugu"`，无报错。
 
 - [ ] **Step 7: 静态检查并提交**
 
@@ -3458,7 +3458,7 @@ rm -rf data
 .venv/bin/python "$CLAUDE_JOB_DIR/tmp/boot_probe.py" 25 "$CLAUDE_JOB_DIR/tmp/boot.log"
 tail -40 "$CLAUDE_JOB_DIR/tmp/boot.log"
 echo "--- 检查 ---"
-grep -q "Succeeded to import \"tsugu\"" "$CLAUDE_JOB_DIR/tmp/boot.log" && echo "插件加载 OK"
+grep -q 'Succeeded to load plugin "tsugu"' "$CLAUDE_JOB_DIR/tmp/boot.log" && echo "插件加载 OK"
 ! grep -qiE "traceback|error|failed to" "$CLAUDE_JOB_DIR/tmp/boot.log" && echo "无异常 OK"
 .venv/bin/python -c "
 import sqlite3
@@ -3673,7 +3673,7 @@ git commit -m "docs: 更新 CLAUDE.md 以反映 Tsugu 改造后的架构"
 全部满足才算完成：
 
 1. `ruff check src/`、`ruff format --check src/`、`pyright src/` 均无输出。
-2. `nb run` 启动无 Traceback，日志有 `Succeeded to import "tsugu"`。
+2. `nb run` 启动无 Traceback，日志有 `Succeeded to load plugin "tsugu" from "src.plugins.tsugu"`。
 3. `data/db.sqlite3` 恰好含 `alembic_version` 与 `tsugu_group_settings` 两张表。
 4. `probe_rule.py`、`probe_sender.py`、`probe_user.py`、`probe_event.py`、`probe_dispatch.py`、`probe_api.py` 全部通过。
 5. `src/plugins/tsugu/commands/` 下累计 30 个 `@register`（含 `bind_reply`，`bind_reply` 不出现在 help 里）。
