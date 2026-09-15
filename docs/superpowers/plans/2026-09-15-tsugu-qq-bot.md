@@ -1110,7 +1110,7 @@ def build_message(part: Part) -> Message:
 
     图片用 file_image 产生 file_type=1 的 LocalAttachment，适配器据此识别为图片。
 
-    这里不传 file_name，但**这不影响走哪条上传路径**（我一开始把因果关系写反了）：
+    这里不传 file_name，但它**不影响走哪条上传路径**：
     适配器的 `_extract_qq_media` 只在 `file_data` 超过 10MB 时才往 kwargs 里塞
     `file_name`，`send_to_group` 再按「kwargs 里有没有 file_name」在
     `post_group_upload`（分块）与 `post_group_files`（普通）之间二选一。
