@@ -354,9 +354,16 @@ class Config(BaseModel):
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from tsugu_api_core._typing import ServerId, _DifficultyId
+
 # ---- 服务器 ----
 
-SERVER_ID_TO_NAME: dict[int, str] = {
+# 服务器 ID 就是 0-4。用库里声明的 ServerId 而不是裸 int：tsugu_api_async 的
+# 各接口都要求 ServerId，在源头标对，下游就不用到处 cast。
+SERVER_ID_TO_NAME: dict[ServerId, str] = {
     0: "日服",
     1: "国际服",
     2: "台服",
@@ -365,7 +372,7 @@ SERVER_ID_TO_NAME: dict[int, str] = {
 }
 
 # 服务器名 -> ID。包括英文代号、中文全名和数字字符串。
-SERVER_NAME_TO_ID: dict[str, int] = {
+SERVER_NAME_TO_ID: dict[str, ServerId] = {
     "jp": 0,
     "日服": 0,
     "en": 1,
@@ -440,7 +447,7 @@ def tier_list_text() -> str:
 
 # ---- 难度 ----
 
-DIFFICULTY_NAMES: dict[str, int] = {
+DIFFICULTY_NAMES: dict[str, _DifficultyId] = {
     "ez": 0,
     "easy": 0,
     "简单": 0,
@@ -458,7 +465,7 @@ DIFFICULTY_NAMES: dict[str, int] = {
     "特殊": 4,
 }
 
-DEFAULT_DIFFICULTY_ID = 3
+DEFAULT_DIFFICULTY_ID: _DifficultyId = 3
 """查谱面未指定难度时使用 expert。"""
 
 # ---- 车牌关键词 ----
@@ -1064,12 +1071,13 @@ from base64 import b64decode
 from typing import TYPE_CHECKING
 
 from nonebot.adapters.qq import Message, MessageSegment
+from tsugu_api_core._typing import _Response
 
 if TYPE_CHECKING:
     from nonebot.matcher import Matcher
 
-Response = list[dict[str, str]]
-"""Tsugu 后端的统一响应结构。"""
+Response = _Response
+"""Tsugu 后端的统一响应结构，直接用库声明的类型。"""
 
 Part = str | bytes
 """一条待发送的消息：str 是文本，bytes 是图片二进制。"""
@@ -1123,7 +1131,7 @@ def build_message(part: Part) -> Message:
 
 
 async def send_result(
-    matcher: "Matcher",
+    matcher: type[Matcher],
     items: Response,
     *,
     limit: int,
@@ -1272,10 +1280,19 @@ git commit -m "feat: 新增响应转换层，处理被动消息条数上限与�
 from __future__ import annotations
 
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import nonebot
 import tsugu_api_async
+from tsugu_api_core._typing import (
+    PartialTsuguUser,
+    ServerId,
+    _BindingAction,
+    _DifficultyId,
+    _Response,
+    _Room,
+    _TsuguUser,
+)
 from tsugu_api_core.exception import (
     BadRequestError,
     FailedException,
@@ -1288,8 +1305,8 @@ from . import constants as const
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-Response = list[dict[str, str]]
-"""Tsugu 后端的统一响应结构。"""
+Response = _Response
+"""Tsugu 后端的统一响应结构，直接用库声明的类型。"""
 
 
 class UserDataError(Exception):
@@ -1336,7 +1353,7 @@ async def _query(coro: Any) -> Response:
 # ---- 名称解析 ----
 
 
-async def resolve_server(name: str) -> int:
+async def resolve_server(name: str) -> ServerId:
     """把服务器名解析成 ServerId。
 
     先查本地表（英文代号 / 中文全名 / 数字），未命中再走后端模糊搜索。
@@ -1353,12 +1370,13 @@ async def resolve_server(name: str) -> int:
         nonebot.logger.opt(exception=exc).debug("服务器名模糊搜索失败")
         raise ValueError(const.ERR_SERVER_NOT_FOUND) from exc
 
+    # 后端模糊搜索返回的是无类型的 str | int，这里收窄成 ServerId
     if not found or found[0] not in const.SERVER_ID_TO_NAME:
         raise ValueError(const.ERR_SERVER_NOT_FOUND)
-    return int(found[0])
+    return cast("ServerId", found[0])
 
 
-async def resolve_difficulty(name: str) -> int:
+async def resolve_difficulty(name: str) -> _DifficultyId:
     """把难度名解析成 DifficultyId。失败抛 ValueError，文案已可直接展示。"""
     if (difficulty_id := const.DIFFICULTY_NAMES.get(name.lower())) is not None:
         return difficulty_id
@@ -1371,13 +1389,13 @@ async def resolve_difficulty(name: str) -> int:
 
     if not found or found[0] not in (0, 1, 2, 3, 4):
         raise ValueError(const.ERR_DIFFICULTY_NOT_FOUND)
-    return int(found[0])
+    return cast("_DifficultyId", found[0])
 
 
 # ---- 用户数据 ----
 
 
-async def load_user(user_id: str) -> dict[str, Any]:
+async def load_user(user_id: str) -> _TsuguUser:
     """读取用户数据。后端对不存在的用户会自动创建。"""
     try:
         response = await tsugu_api_async.get_user_data(_platform(), user_id)
@@ -1390,7 +1408,7 @@ async def load_user(user_id: str) -> dict[str, Any]:
     return response["data"]
 
 
-async def change_user(user_id: str, update: dict[str, Any]) -> str | None:
+async def change_user(user_id: str, update: PartialTsuguUser) -> str | None:
     """写入用户数据。成功返回 None，失败返回可直接展示的错误文案。"""
     try:
         response = await tsugu_api_async.change_user_data(_platform(), user_id, update)
@@ -1416,7 +1434,9 @@ async def request_bind_code(user_id: str) -> int:
     return int(response["data"]["verifyCode"])
 
 
-async def verify_bind(user_id: str, server: int, player_id: int, action: str) -> str:
+async def verify_bind(
+    user_id: str, server: ServerId, player_id: int, action: _BindingAction
+) -> str:
     """提交绑定或解绑验证。返回后端给的提示文本。"""
     try:
         response = await tsugu_api_async.bind_player_verification(
@@ -1434,7 +1454,7 @@ async def verify_bind(user_id: str, server: int, player_id: int, action: str) ->
 # ---- 查询接口 ----
 
 
-async def search_card(servers: Sequence[int], text: str) -> Response:
+async def search_card(servers: Sequence[ServerId], text: str) -> Response:
     return await _query(tsugu_api_async.search_card(servers, text=text))
 
 
@@ -1442,65 +1462,67 @@ async def card_illustration(card_id: int) -> Response:
     return await _query(tsugu_api_async.get_card_illustration(card_id))
 
 
-async def search_character(servers: Sequence[int], text: str) -> Response:
+async def search_character(servers: Sequence[ServerId], text: str) -> Response:
     return await _query(tsugu_api_async.search_character(servers, text=text))
 
 
-async def search_event(servers: Sequence[int], text: str) -> Response:
+async def search_event(servers: Sequence[ServerId], text: str) -> Response:
     return await _query(tsugu_api_async.search_event(servers, text=text))
 
 
-async def search_gacha(servers: Sequence[int], gacha_id: int) -> Response:
+async def search_gacha(servers: Sequence[ServerId], gacha_id: int) -> Response:
     return await _query(tsugu_api_async.search_gacha(servers, gacha_id))
 
 
-async def search_song(servers: Sequence[int], text: str) -> Response:
+async def search_song(servers: Sequence[ServerId], text: str) -> Response:
     return await _query(tsugu_api_async.search_song(servers, text=text))
 
 
 async def song_chart(
-    servers: Sequence[int], song_id: int, difficulty_id: int
+    servers: Sequence[ServerId], song_id: int, difficulty_id: _DifficultyId
 ) -> Response:
     return await _query(tsugu_api_async.song_chart(servers, song_id, difficulty_id))
 
 
-async def song_random(server: int, text: str) -> Response:
+async def song_random(server: ServerId, text: str) -> Response:
     return await _query(tsugu_api_async.song_random(server, text=text))
 
 
-async def song_meta(servers: Sequence[int], server: int) -> Response:
+async def song_meta(servers: Sequence[ServerId], server: ServerId) -> Response:
     return await _query(tsugu_api_async.song_meta(servers, server))
 
 
-async def event_stage(server: int, event_id: int | None, *, meta: bool) -> Response:
+async def event_stage(
+    server: ServerId, event_id: int | None, *, meta: bool
+) -> Response:
     return await _query(tsugu_api_async.event_stage(server, event_id, meta))
 
 
-async def search_player(player_id: int, server: int) -> Response:
+async def search_player(player_id: int, server: ServerId) -> Response:
     return await _query(tsugu_api_async.search_player(player_id, server))
 
 
 async def gacha_simulate(
-    server: int, times: int | None, gacha_id: int | None
+    server: ServerId, times: int | None, gacha_id: int | None
 ) -> Response:
     return await _query(tsugu_api_async.gacha_simulate(server, times, gacha_id))
 
 
-async def cutoff_detail(server: int, tier: int, event_id: int | None) -> Response:
+async def cutoff_detail(server: ServerId, tier: int, event_id: int | None) -> Response:
     return await _query(tsugu_api_async.cutoff_detail(server, tier, event_id))
 
 
-async def cutoff_all(server: int, event_id: int | None) -> Response:
+async def cutoff_all(server: ServerId, event_id: int | None) -> Response:
     return await _query(tsugu_api_async.cutoff_all(server, event_id))
 
 
-async def cutoff_history(server: int, tier: int, event_id: int | None) -> Response:
+async def cutoff_history(server: ServerId, tier: int, event_id: int | None) -> Response:
     return await _query(
         tsugu_api_async.cutoff_list_of_recent_event(server, tier, event_id)
     )
 
 
-async def query_all_rooms() -> list[dict[str, Any]]:
+async def query_all_rooms() -> list[_Room]:
     """车站里的全部房间号。
 
     注意这个接口不返回 Response 列表而是房间字典列表，为了和查询接口
@@ -1517,7 +1539,7 @@ async def query_all_rooms() -> list[dict[str, Any]]:
     return list(response["data"])
 
 
-async def render_room_list(rooms: list[dict[str, Any]]) -> Response:
+async def render_room_list(rooms: list[_Room]) -> Response:
     """把房间列表交给后端画成图片。"""
     return await _query(tsugu_api_async.room_list(rooms))
 ```
@@ -1657,35 +1679,36 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from . import api
 from . import constants as const
 
 if TYPE_CHECKING:
     from nonebot.matcher import Matcher
+    from tsugu_api_core._typing import ServerId, _TsuguUser, _UserPlayerInList
 
 
 @dataclass
 class User:
     """用户数据的可读视图。字段名与后端 tsuguUser 一一对应。"""
 
-    main_server: int = 3
-    displayed_server_list: list[int] = field(default_factory=lambda: [3, 0])
+    main_server: ServerId = 3
+    displayed_server_list: list[ServerId] = field(default_factory=lambda: [3, 0])
     share_room_number: bool = True
     user_player_index: int = 0
-    user_player_list: list[dict[str, int]] = field(default_factory=list)
+    user_player_list: list[_UserPlayerInList] = field(default_factory=list)
 
     @classmethod
-    def from_raw(cls, raw: dict[str, Any]) -> "User":
+    def from_raw(cls, raw: _TsuguUser) -> "User":
+        # 下标取值而非 .get(默认值)：_TsuguUser 把字段都声明为必填，给不存在的
+        # 字段编默认值只会掩盖后端契约被破坏这件事。
         return cls(
-            main_server=int(raw.get("mainServer", 3)),
-            displayed_server_list=[
-                int(server) for server in raw.get("displayedServerList", [3, 0])
-            ],
-            share_room_number=bool(raw.get("shareRoomNumber", True)),
-            user_player_index=int(raw.get("userPlayerIndex", 0)),
-            user_player_list=list(raw.get("userPlayerList", [])),
+            main_server=raw["mainServer"],
+            displayed_server_list=list(raw["displayedServerList"]),
+            share_room_number=raw["shareRoomNumber"],
+            user_player_index=raw["userPlayerIndex"],
+            user_player_list=list(raw["userPlayerList"]),
         )
 
 
@@ -1696,7 +1719,7 @@ class PendingBind:
     action: str
     """'bind' 或 'unbind'。"""
 
-    server: int
+    server: ServerId
     created_at: float = field(default_factory=time.monotonic)
     """创建时刻，用于超时判断。"""
 
@@ -1708,12 +1731,12 @@ pending: dict[str, PendingBind] = {}
 """用户 ID -> 待处理的绑定流程。进程内存，重启即失效，这是期望行为。"""
 
 
-def server_name(server: int) -> str:
+def server_name(server: ServerId) -> str:
     """服务器 ID 转中文名。"""
     return const.SERVER_ID_TO_NAME.get(server, str(server))
 
 
-async def load_user_or_finish(matcher: "Matcher", user_id: str) -> User:
+async def load_user_or_finish(matcher: type[Matcher], user_id: str) -> User:
     """读取用户数据；失败时直接结束本次回复。
 
     matcher.finish 会抛 FinishedException，所以成功路径以外不会返回。
@@ -1727,8 +1750,8 @@ async def load_user_or_finish(matcher: "Matcher", user_id: str) -> User:
 
 
 def pick_player(
-    user: User, server: int | None = None, index: int | None = None
-) -> dict[str, int]:
+    user: User, server: ServerId | None = None, index: int | None = None
+) -> _UserPlayerInList:
     """按 mainline Tsugu 的规则选出要展示的玩家绑定。
 
     index 给定时按 1 起的序号取；否则先看默认索引那条是不是在目标服务器上，
@@ -1777,7 +1800,7 @@ def build_player_list_text(user: User) -> str:
     return "\n".join(lines)
 
 
-def build_bind_prompt(server: int, code: int) -> str:
+def build_bind_prompt(server: ServerId, code: int) -> str:
     """绑定流程第一步的引导文本，措辞与 mainline Tsugu 一致。"""
     return (
         f"正在绑定来自 {server_name(server)} 账号，请将你的\n"
@@ -1988,7 +2011,7 @@ async def submit_room_number(
     raw_message: str,
     user_id: str,
     user_name: str,
-    bandori_station_token: Optional[str],
+    bandori_station_token: str | None,
 ) -> str:
     """提交车牌到车站。返回空串表示成功，否则是可直接展示的错误文案。"""
     try:
@@ -2085,6 +2108,7 @@ from tsugu.sender import Response, send_result
 if TYPE_CHECKING:
     from nonebot.adapters.qq import Bot
     from nonebot.matcher import Matcher
+
     from tsugu.user import PendingBind
 
 
@@ -2095,7 +2119,7 @@ class Ctx:
     把处理器需要的一切显式传进来，避免处理器再去做全局查找。
     """
 
-    matcher: "Matcher"
+    matcher: type[Matcher]
     bot: "Bot"
     event: Any
     user_id: str
@@ -2104,7 +2128,9 @@ class Ctx:
     head: str
     at_user_id: str | None
     max_messages: int
-    pending: "PendingBind" | None = None
+    # PendingBind 在 TYPE_CHECKING 下导入；本文件有 from __future__ import
+    # annotations，注解不会在运行时求值，所以不用加引号。
+    pending: PendingBind | None = None
 
     async def reply(self, items: Response) -> None:
         """发送后端响应，自动处理条数上限。"""
@@ -2264,7 +2290,7 @@ __plugin_meta__ = PluginMetadata(
     supported_adapters={"~qq"},
 )
 
-config = get_plugin_config(Config)
+config: Config = get_plugin_config(Config)
 
 tsugu_api_async.settings.backend_url = config.tsugu_backend_url
 tsugu_api_async.settings.userdata_backend_url = config.tsugu_data_backend_url
@@ -2691,15 +2717,20 @@ async def handle_event_stage(ctx: Ctx) -> None:
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from tsugu import api, user
 from tsugu import constants as const
 
 from . import Ctx, register
 
+if TYPE_CHECKING:
+    from tsugu_api_core._typing import ServerId
+
 
 async def _resolve_event_and_server(
     ctx: Ctx, rest: list[str]
-) -> tuple[int | None, int | None] | None:
+) -> tuple[int | None, ServerId | None] | None:
     """从剩余参数里解析出 (活动ID, 服务器ID)。解析失败时已回复错误并返回 None。"""
     rest = list(rest)
 
@@ -2707,7 +2738,7 @@ async def _resolve_event_and_server(
     if rest and rest[0].isdigit():
         event_id = int(rest.pop(0))
 
-    server: int | None = None
+    server: ServerId | None = None
     if rest:
         try:
             server = await api.resolve_server(rest[0])
@@ -2869,10 +2900,15 @@ git commit -m "feat: 新增查活动、预测线、查玩家与车站命令"
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from tsugu import api, user
 from tsugu import constants as const
 
 from . import Ctx, register
+
+if TYPE_CHECKING:
+    from tsugu_api_core._typing import ServerId
 
 
 @register("bind_player")
@@ -3003,7 +3039,7 @@ async def handle_display_servers(ctx: Ctx) -> None:
         await ctx.reply_error("错误: 请指定至少一个服务器")
         return
 
-    servers: list[int] = []
+    servers: list[ServerId] = []
     for name in ctx.args:
         try:
             server = await api.resolve_server(name)
@@ -3030,7 +3066,7 @@ async def handle_player_status(ctx: Ctx) -> None:
     tsugu_user = await user.load_user_or_finish(ctx.matcher, ctx.user_id)
 
     index: int | None = None
-    server: int | None = None
+    server: ServerId | None = None
 
     if ctx.args:
         if ctx.args[0].isdigit():
