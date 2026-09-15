@@ -804,13 +804,13 @@ git commit -m "feat: 新增 Tsugu 插件骨架、配置模型与常量表"
 **Interfaces:**
 - Consumes: `constants.COMMAND_HEADS`
 - Produces:
-  - `rule.Match`：frozen dataclass，字段 `command: str`、`head: str`、`args: List[str]`
-  - `rule.build_head_table(heads) -> Dict[str, str]`
-  - `rule.match_command(text, table, *, no_space=False) -> Optional[Match]`
+  - `rule.Match`：frozen dataclass，字段 `command: str`、`head: str`、`args: list[str]`
+  - `rule.build_head_table(heads) -> dict[str, str]`
+  - `rule.match_command(text, table, *, no_space=False) -> Match | None`
   - `rule.apply_shortcut(text) -> str`
-  - `rule.match_car(text, car_keywords, fake_keywords) -> Optional[Tuple[int, str]]`
+  - `rule.match_car(text, car_keywords, fake_keywords) -> tuple[int, str] | None`
   - `rule.normalize(text) -> str`
-  - `rule.get_group_openid(event) -> Optional[str]`
+  - `rule.get_group_openid(event) -> str | None`
 
 - [ ] **Step 1: 写 rule.py**
 
@@ -1049,9 +1049,9 @@ git commit -m "feat: 新增 QQ 触发层，支持命令头匹配、shortcut 与�
 **Interfaces:**
 - Consumes: 无（只依赖 nonebot-adapter-qq）
 - Produces:
-  - `sender.Response = List[Dict[str, str]]`
+  - `sender.Response = _Response`（库声明的响应类型）
   - `sender.Part = str | bytes`（str = 一条文本消息，bytes = 一张图片）
-  - `sender.split_messages(items: Response, limit: int) -> List[Part]`（纯函数）
+  - `sender.split_messages(items: Response, limit: int) -> list[Part]`（纯函数）
   - `sender.build_message(part: Part) -> Message`
   - `sender.send_result(matcher, items, *, limit, at_user_id=None) -> None`（async）
 
@@ -1255,17 +1255,17 @@ git commit -m "feat: 新增响应转换层，处理被动消息条数上限与�
 **Interfaces:**
 - Consumes: `constants` 的表与文案
 - Produces:
-  - `api.Response = List[Dict[str, str]]`
+  - `api.Response = _Response`（库声明的响应类型）
   - `api.UserDataError(Exception)`：用户数据接口失败，`str(exc)` 可直接展示
   - `api.describe_error(exc) -> str`
   - `api.resolve_server(name) -> int`（async，失败抛 `ValueError`）
   - `api.resolve_difficulty(name) -> int`（async，失败抛 `ValueError`）
-  - `api.load_user(user_id) -> Dict[str, Any]`（async）
-  - `api.change_user(user_id, update) -> Optional[str]`（async，成功返回 None）
+  - `api.load_user(user_id) -> _TsuguUser`（async）
+  - `api.change_user(user_id, update: PartialTsuguUser) -> str | None`（async，成功返回 None）
   - `api.request_bind_code(user_id) -> int`（async）
   - `api.verify_bind(user_id, server, player_id, action) -> str`（async）
   - 一组同名查询函数，全部 `async` 且返回 `Response`：`search_card`、`card_illustration`、`search_character`、`search_event`、`search_gacha`、`search_song`、`song_chart`、`song_random`、`song_meta`、`event_stage`、`search_player`、`gacha_simulate`、`cutoff_detail`、`cutoff_all`、`cutoff_history`、`render_room_list`
-  - **例外**：`api.query_all_rooms() -> List[Dict[str, Any]]` —— 车站接口不返回 Response 列表而返回房间字典列表，失败时抛 `UserDataError`
+  - **例外**：`api.query_all_rooms() -> list[_Room]` —— 车站接口不返回 Response 列表而返回房间字典列表，失败时抛 `UserDataError`
 
 - [ ] **Step 1: 写 api.py**
 
@@ -1665,10 +1665,10 @@ git commit -m "feat: 新增 Tsugu 后端调用封装与异常文案映射"
   - `user.User` dataclass：字段 `main_server`、`displayed_server_list`、`share_room_number`、`user_player_index`、`user_player_list`
   - `user.User.from_raw(raw) -> User`
   - `user.load_user_or_finish(matcher, user_id) -> User`（async，失败时已 `finish`）
-  - `user.pick_player(user, server=None, index=None) -> Dict[str, int]`（失败抛 `ValueError`）
+  - `user.pick_player(user, server=None, index=None) -> _UserPlayerInList`（失败抛 `ValueError`）
   - `user.build_player_list_text(user) -> str`（纯函数）
   - `user.build_bind_prompt(server, code) -> str`（纯函数）
-  - `user.pending: Dict[str, "PendingBind"]`：绑定流程的待处理状态
+  - `user.pending: dict[str, PendingBind]`：绑定流程的待处理状态
 
 - [ ] **Step 1: 写 user.py**
 
@@ -1958,8 +1958,7 @@ git commit -m "feat: 新增用户数据模型、玩家选择规则与绑定文�
   - `car.maybe_forward(event, user_id, text) -> bool`（async）
   - `api.submit_room_number(number, raw_message, user_id, user_name, token) -> str`（async，空串表示成功）
   - `commands.Ctx`：dataclass，字段 `matcher`、`bot`、`event`、`user_id`、`group_openid`、`args`、`head`、`at_user_id`、`max_messages`、`pending`；方法 `reply(items)` / `reply_text(text)` / `reply_error(text)` / `local_only()`
-  - `commands.HANDLERS: Dict[str, Handler]`
-  - `commands.require_group(ctx) -> Optional[str]`：取出群 openid，私聊返回 None
+  - `commands.HANDLERS: dict[str, Handler]`
 
 - [ ] **Step 1: 写 db.py**
 
