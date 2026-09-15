@@ -12,7 +12,11 @@
 
 ## Global Constraints
 
-- **Python 版本**：`requires-python = ">=3.9, <4.0"`，ruff `target-version = "py39"`，pyright `pythonVersion = "3.9"`。所有新代码必须能在 3.9 下运行——**不能用 `X | Y` 的运行时联合类型注解**，需要时用 `from __future__ import annotations` + `typing.Optional/Union`。
+- **Python 版本**：`requires-python = ">=3.10, <4.0"`，ruff `target-version = "py310"`，pyright `pythonVersion = "3.10"`。
+  这个下限是实测出来的，不是随意选的：`nonebot2` 2.5.0 声明 `>=3.10, <4.0`、`nonebot-adapter-qq` 1.7.1 声明 `>=3.10, <4`、
+  `websockets` 16.0 声明 `>=3.10`，所以 3.9 根本无法安装这套依赖。Task 1 已把三处声明改到 3.10。
+  代码仍然统一用 `from __future__ import annotations` + `typing.Optional/Union` 写类型——这在 3.10 下同样合法，
+  且风格统一，没有必要改用 `X | Y`。
 - **代码风格**：ruff `line-length = 88`、LF 行尾。提交前必须 `ruff check src/` 与 `ruff format src/` 均无输出。
 - **类型检查**：`pyright src/` 必须 0 error。
 - **提交信息**：**只能一句话**，形如 `feat: 新增触发层`。不留正文、不留空行、**绝不加 `Co-Authored-By` 或任何 Claude 字样**。
