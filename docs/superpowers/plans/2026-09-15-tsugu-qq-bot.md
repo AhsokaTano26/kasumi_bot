@@ -827,8 +827,16 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
 CAR_PATTERN = re.compile(r"^(\d{5,6})(.*)$", re.DOTALL)
+r"""车牌：开头 5 或 6 位数字，其余全部作为备注。
+
+`re.DOTALL` 是必需的，不是噪音：QQ 消息可以带换行，没有它 `.` 匹配不到换行符，
+多行车牌会被拦腰截断。`\d{5,6}` 贪婪取位数，7 位以上数字开头时取前 6 位、
+余下进备注——这与上游一致（koishi 用无边界的 `/^(\d{6})/`，nonebot-tsugu 用贪婪的
+`^(\d{5,6})`），不要加 `(?!\d)` 之类去"纠正"。"""
+
 MODE_SHORTCUT = re.compile(r"^(.+服)模式$")
 STATUS_SHORTCUT = re.compile(r"^(.+服)玩家状态$")
+"""两个 shortcut，与上游逐字一致（koishi `/^(.+服)模式$/`）。"""
 
 
 @dataclass(frozen=True)
@@ -987,7 +995,13 @@ assert match_car("123456 大分e", const.CAR_KEYWORDS, const.FAKE_KEYWORDS) == (
 assert match_car("12345 q1", const.CAR_KEYWORDS, const.FAKE_KEYWORDS) == (12345, " q1")
 assert match_car("123456 雀魂", const.CAR_KEYWORDS, const.FAKE_KEYWORDS) is None   # fake 词
 assert match_car("123456 随便聊聊", const.CAR_KEYWORDS, const.FAKE_KEYWORDS) is None  # 无 car 词
-assert match_car("1234 大分车", const.CAR_KEYWORDS, const.FAKE_KEYWORDS) is None   # 位数不足
+assert match_car("1234 大分e", const.CAR_KEYWORDS, const.FAKE_KEYWORDS) is None   # 位数不足
+# 注意：这条 fixture 必须用真关键词 大分e。若写 "1234 大分车"，它是因为不含车牌关键词
+# 而被拒的，而不是因为位数不足——那样就测不到位数规则。
+assert match_car("1234567 大分e", const.CAR_KEYWORDS, const.FAKE_KEYWORDS) == (123456, "7 大分e")
+# 上面这条是**故意的**：7 位数字开头时取前 6 位、余下留给备注，与上游一致
+#（koishi 用 /^(\d{6})/ 无边界，nonebot-tsugu 用贪婪的 ^(\d{5,6})，两者都截断）。
+# 不要"修"成拒绝 7 位——那会偏离上游行为。
 assert match_car("查卡 1399", const.CAR_KEYWORDS, const.FAKE_KEYWORDS) is None     # 非数字开头
 
 # 空参数与纯命令头
@@ -2266,11 +2280,20 @@ def _collect_heads() -> list[tuple[str, str]]:
     环境变量一律走 json.loads，写成逗号分隔会直接抛 SettingsError。
     """
     heads = list(const.COMMAND_HEADS)
-    heads.extend(
-        (alias, command)
-        for field, command in const.ALIAS_FIELDS.items()
-        for alias in getattr(config, field)
-    )
+    builtin_heads = {head for head, _ in const.COMMAND_HEADS}
+
+    aliases: list[tuple[str, str]] = []
+    for field, command in const.ALIAS_FIELDS.items():
+        for alias in getattr(config, field):
+            if alias in builtin_heads:
+                # build_head_table 遇到重复命令头是「后者胜」，用户别名会静默改写
+                # 内置命令头的指向。这里至少留一条线索，否则很难排查。
+                nonebot.logger.warning(
+                    f"配置的别名 {alias!r} 与内置命令头重名，将覆盖它原本指向的命令"
+                )
+            aliases.append((alias, command))
+
+    heads.extend(aliases)
     return heads
 
 
