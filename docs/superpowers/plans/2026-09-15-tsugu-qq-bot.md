@@ -1652,7 +1652,7 @@ class User:
     """用户数据的可读视图。字段名与后端 tsuguUser 一一对应。"""
 
     main_server: int = 3
-    displayed_server_list: list[int] = field(default_factory=lambda: [3, 1])
+    displayed_server_list: list[int] = field(default_factory=lambda: [3, 0])
     share_room_number: bool = True
     user_player_index: int = 0
     user_player_list: list[dict[str, int]] = field(default_factory=list)
@@ -1662,7 +1662,7 @@ class User:
         return cls(
             main_server=int(raw.get("mainServer", 3)),
             displayed_server_list=[
-                int(server) for server in raw.get("displayedServerList", [3, 1])
+                int(server) for server in raw.get("displayedServerList", [3, 0])
             ],
             share_room_number=bool(raw.get("shareRoomNumber", True)),
             user_player_index=int(raw.get("userPlayerIndex", 0)),
@@ -1848,7 +1848,7 @@ assert pick_player(user, server=3)["playerId"] == 111
 # 文本构造
 user = User(
     main_server=3,
-    displayed_server_list=[3, 1],
+    displayed_server_list=[3, 0],
     user_player_index=0,
     user_player_list=[{"playerId": 10000000, "server": 3}, {"playerId": 40474621, "server": 0}],
 )

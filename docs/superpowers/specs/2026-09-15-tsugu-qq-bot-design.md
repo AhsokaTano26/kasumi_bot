@@ -215,7 +215,7 @@ text = event.get_message().extract_plain_text().strip()
   "userId": str,
   "platform": "red",
   "mainServer": 3,                     # 国服
-  "displayedServerList": [3, 1],       # 国服, 日服
+  "displayedServerList": [3, 0],       # 国服, 日服（实测公共后端新建用户即为 [3, 0]）
   "shareRoomNumber": True,
   "userPlayerIndex": 0,
   "userPlayerList": [{"playerId": int, "server": int}, ...]
