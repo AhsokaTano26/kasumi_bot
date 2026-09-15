@@ -3,14 +3,14 @@ name = "kasumi_bot"
 version = "0.1.0"
 description = "kasumi_bot"
 readme = "README.md"
-requires-python = ">=3.9, <4.0"
+requires-python = ">=3.10, <4.0"
 dependencies = [
     "nonebot2[fastapi]>=2.5.0",
     "nonebot2[httpx]>=2.5.0",
     "nonebot2[websockets]>=2.5.0",
     "nonebot-adapter-qq>=1.7.0",
-    "nonebot-plugin-apscheduler>=0.5.0",
-    "nonebot-plugin-orm[sqlite]>=0.8.0"
+    "nonebot-plugin-orm[sqlite]>=0.8.0",
+    "tsugu-api-python[httpx]>=1.5.10"
 ]
 
 [project.optional-dependencies]
@@ -33,7 +33,7 @@ nonebot-adapter-qq = [
 "@local" = []
 [tool.ruff]
 line-length = 88
-target-version = "py39"
+target-version = "py310"
 
 [tool.ruff.format]
 line-ending = "lf"
@@ -93,6 +93,8 @@ ignore = [
     "ANN401",  # any-type
     "COM812",  # missing-trailing-comma
     "PLC0415", # import-outside-top-level
+    "TID252",  # relative-imports  # nonebot 把插件按 src.plugins.tsugu 加载，
+               # src/plugins 不在 sys.path 上，绝对导入 from tsugu import x 运行时必炸
 ]
 allowed-confusables = ["，", "。", "“", "”", "：", "；", "？", "！", "【", "】", "《", "》", "…", "—", "（", "）", "、"]
 
@@ -101,6 +103,8 @@ keep-runtime-typing = true
 
 [tool.pyright]
 # For Pylance/Pyright configurations, see https://microsoft.github.io/pyright/#/configuration.
-pythonVersion = "3.9"
+pythonVersion = "3.10"
 pythonPlatform = "All"
 typeCheckingMode = "standard"
+venvPath = "."
+venv = ".venv"
