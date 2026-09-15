@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-kasumi_bot is a QQ chatbot frontend for **Tsugu BanGDream Bot**, built with [NoneBot2](https://nonebot.dev/) on the official QQ adapter (`nonebot-adapter-qq`). Python 3.9+, developed against 3.13.
+kasumi_bot is a QQ chatbot frontend for **Tsugu BanGDream Bot**, built with [NoneBot2](https://nonebot.dev/) on the official QQ adapter (`nonebot-adapter-qq`). Python 3.10+, developed against 3.13. The 3.10 floor is not a preference: `nonebot2`, `nonebot-adapter-qq` and `websockets` all declare `>=3.10`, so the dependency set cannot install on 3.9.
 
 The bot owns no game data and renders nothing itself. Every query is answered by the **public Tsugu backend** at `http://tsugubot.com:8080` (overridable via config); the plugin's job is trigger matching, argument parsing, and translating the backend's unified response into QQ messages. User data lives in that same backend, shared with the official Tsugu QQ bot.
 
@@ -39,7 +39,7 @@ QQ official Bot <--WebSocket--> nonebot-adapter-qq --> NoneBot2
 
 FastAPI is the ASGI server; httpx handles outbound HTTP, wrapped by `tsugu-api-python` (imported as `tsugu_api_async`).
 
-**Plugin system:** Plugins live under `src/plugins/`, each as a Python package. Plugin directories are configured in `pyproject.toml` under `[tool.nonebot]`. `tsugu` is the only plugin that does real work; `nonebot_plugin_orm` and `nonebot_plugin_localstore` are loaded as dependencies.
+**Plugin system:** Plugins live under `src/plugins/`, each as a Python package, discovered via `plugin_dirs = ["src/plugins"]` in `[tool.nonebot]`. `tsugu` is the only plugin containing code; `nonebot-plugin-orm` is a declared dependency (declared explicitly in `pyproject.toml` and required by `tsugu` at import time via `require("nonebot_plugin_orm")`, because the ORM resolves its caller plugin from the import stack). `nonebot-plugin-localstore` arrives transitively through it and is not declared directly.
 
 ### Why the plugin does not use `on_command`
 
@@ -98,9 +98,16 @@ A comma-separated value (`TSUGU_SEARCH_CARD_ALIASES=查卡,查卡牌`) raises `n
 
 ## Code Style
 
-- Linter/formatter: **Ruff** (line length 88, target Python 3.9, LF endings)
-- Type checker: **Pyright** (standard mode, Python 3.9 target)
-- Ruff rule sets: pyflakes, pycodestyle, isort, mccabe, pep8-naming, pylint, pyupgrade, bugbear, comprehensions, type-annotations, FastAPI
+- Linter/formatter: **Ruff** (line length 88, `target-version = "py310"`, LF endings)
+- Type checker: **Pyright** (standard mode, `pythonVersion = "3.10"`, resolving against `.venv` via `venvPath`/`venv`)
+- Ruff `select`: `F W E I C90 N PL UP YTT ANN ASYNC BLE FBT B A COM C4 DTZ T10 ICN PIE T20 PYI Q RSE RET SIM SLOT TID TC ARG PTH FAST PERF PGH FURB TRY RUF`
+
+Two consequences worth knowing before writing code here:
+
+- **Annotations must be modern.** With `UP` selected and `target-version = "py310"`, `List[X]` / `Optional[X]` / `from typing import Dict` are hard errors (UP006/UP035/UP045) — not style preferences. Use `list[X]`, `X | None`, and import abstract types from `collections.abc`. `pyupgrade.keep-runtime-typing = true` does **not** suppress these.
+- **Cross-subpackage imports must be parent-relative** (`from .. import api`, `from .. import constants as const`); same-package imports are single-dot (`from . import Ctx, register`). `TID252` is in `ignore` precisely because the absolute form is broken here: NoneBot loads this plugin as `src.plugins.tsugu`, `src/plugins` is never on `sys.path`, so `from tsugu import api` raises `ModuleNotFoundError` **at runtime, not at lint time**. Also aliased constants use lowercase `const`, not `K` (`N812`).
+
+Other deliberate `ignore` entries, each with its reason recorded inline in `pyproject.toml`: `E402` (NoneBot's `require()` must run before later imports), `B008` (NoneBot's `Depends()` in argument defaults), `ANN202`, `ANN401`, `COM812`, `PLC0415`.
 
 ## Adding a New Command
 
