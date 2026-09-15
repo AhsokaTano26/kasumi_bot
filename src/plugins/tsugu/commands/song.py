@@ -21,7 +21,7 @@ async def handle_search_song(ctx: Ctx) -> None:
 
 @register("song_chart")
 async def handle_song_chart(ctx: Ctx) -> None:
-    if not ctx.args or not ctx.args[0].isdigit():
+    if not ctx.args or not ctx.args[0].isdecimal():
         await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 

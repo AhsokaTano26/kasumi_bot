@@ -21,7 +21,7 @@ async def handle_search_card(ctx: Ctx) -> None:
 
 @register("card_illustration")
 async def handle_card_illustration(ctx: Ctx) -> None:
-    if not ctx.args or not ctx.args[0].isdigit():
+    if not ctx.args or not ctx.args[0].isdecimal():
         await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 

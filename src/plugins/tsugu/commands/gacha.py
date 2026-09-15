@@ -13,7 +13,7 @@ async def handle_search_gacha(ctx: Ctx) -> None:
         await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 
-    if not ctx.args[0].lstrip("-").isdigit():
+    if not ctx.args[0].removeprefix("-").isdecimal():
         await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 
@@ -25,7 +25,7 @@ async def handle_search_gacha(ctx: Ctx) -> None:
 
 @register("gacha_simulate")
 async def handle_gacha_simulate(ctx: Ctx) -> None:
-    if not ctx.args or not ctx.args[0].isdigit():
+    if not ctx.args or not ctx.args[0].isdecimal():
         await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
         return
 
@@ -34,7 +34,8 @@ async def handle_gacha_simulate(ctx: Ctx) -> None:
         return
 
     times = int(ctx.args[0])
-    gacha_id = int(ctx.args[1]) if len(ctx.args) > 1 and ctx.args[1].isdigit() else None
+    has_gacha_id = len(ctx.args) > 1 and ctx.args[1].isdecimal()
+    gacha_id = int(ctx.args[1]) if has_gacha_id else None
 
     tsugu_user = await user.load_user_or_finish(ctx.matcher, ctx.user_id)
     await ctx.reply(await api.gacha_simulate(tsugu_user.main_server, times, gacha_id))
