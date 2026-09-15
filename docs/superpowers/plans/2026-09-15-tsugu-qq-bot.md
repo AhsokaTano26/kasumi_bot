@@ -489,12 +489,28 @@ CAR_KEYWORDS: list[str] = [
     "大分a",
     "大分s",
     "长途",
+    "e3",
+    "e长",
+    "s3",
+    "s长",
+    "5级",
+    "满级",
+    "130",
+    "150",
     "生日车",
     "军训",
     "禁fc",
 ]
 
 FAKE_KEYWORDS: list[str] = [
+    "🦐",
+    "虾",
+    "melt",
+    "孜然",
+    "孑然妒火",
+    "周回",
+    "实效",
+    "删语音",
     "114514",
     "野兽",
     "恶臭",
@@ -923,7 +939,7 @@ m = match_command(apply_shortcut("日服模式"), table)
 assert m.command == "main_server" and m.args == ["日服"], m
 
 # 车牌
-assert match_car("123456 大分车", const.CAR_KEYWORDS, const.FAKE_KEYWORDS) == (123456, " 大分车")
+assert match_car("123456 大分e", const.CAR_KEYWORDS, const.FAKE_KEYWORDS) == (123456, " 大分e")
 assert match_car("12345 q1", const.CAR_KEYWORDS, const.FAKE_KEYWORDS) == (12345, " q1")
 assert match_car("123456 雀魂", const.CAR_KEYWORDS, const.FAKE_KEYWORDS) is None   # fake 词
 assert match_car("123456 随便聊聊", const.CAR_KEYWORDS, const.FAKE_KEYWORDS) is None  # 无 car 词
@@ -3308,7 +3324,7 @@ assert plan("日服模式") == ("main_server", ["日服"])
 assert plan("国服玩家状态") == ("player_status", ["国服"])
 
 # 车牌优先于命令
-assert plan("123456 大分车") == ("car", 123456)
+assert plan("123456 大分e") == ("car", 123456)
 assert plan("123456 雀魂") is None
 
 # 无空格开关
