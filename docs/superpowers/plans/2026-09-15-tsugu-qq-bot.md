@@ -119,10 +119,66 @@ ALEMBIC_STARTUP_CHECK=False
 ```bash
 cd /Users/tano/Documents/GitHub/personal/kasumi_bot
 .venv/bin/pip install -q -e ".[dev]"
-.venv/bin/pip freeze > requirements.txt
+.venv/bin/pip freeze --exclude-editable > requirements.txt
+grep -iE "^-e|file://" requirements.txt && echo "!! 混入了本地路径" || echo "requirements.txt 干净"
 ```
 
-- [ ] **Step 5: 验证驱动具备 WebSocket 客户端能力**
+`--exclude-editable` 是必须的：这个 venv 里本项目是以可编辑模式装的，`pip freeze` 会输出
+`-e git+ssh://git@github.com/.../kasumi_bot.git@<sha>#egg=kasumi_bot`。而 `Dockerfile` 执行的是
+`pip wheel --requirement ./requirements.txt`，构建容器没有 SSH key，那一行会让整个镜像构建失败。
+
+- [ ] **Step 5: 建立可移植的启动探针**
+
+macOS 没有 GNU `timeout`（`command -v timeout` 与 `gtimeout` 都为空），所以不能用
+`timeout N nb run`。这个脚本在后续每个任务里复用。
+
+写到 `$CLAUDE_JOB_DIR/tmp/boot_probe.py`（`$CLAUDE_JOB_DIR` 未设置时用 `/tmp`）：
+
+```python
+"""启动 Bot 指定秒数后杀掉，把日志写进文件。替代 macOS 上不存在的 GNU timeout。
+
+用法: python boot_probe.py [秒数] [日志路径]
+"""
+
+import os
+import signal
+import subprocess
+import sys
+
+seconds = int(sys.argv[1]) if len(sys.argv) > 1 else 20
+log_path = sys.argv[2] if len(sys.argv) > 2 else "/tmp/nb_boot.log"
+
+proc = subprocess.Popen(
+    [".venv/bin/nb", "run"],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.STDOUT,
+    text=True,
+    # 独立进程组，这样能连同它派生的子进程一起杀掉
+    start_new_session=True,
+)
+try:
+    output, _ = proc.communicate(timeout=seconds)
+except subprocess.TimeoutExpired:
+    os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    output, _ = proc.communicate()
+
+output = output or ""
+with open(log_path, "w", encoding="utf-8") as handle:
+    handle.write(output)
+
+print(f"启动 {seconds}s 后已终止，日志写入 {log_path}（{len(output)} 字符）")
+```
+
+运行一次确认脚本本身可用（此时工程还是零插件状态，应当能正常启动）：
+
+```bash
+cd /Users/tano/Documents/GitHub/personal/kasumi_bot
+.venv/bin/python "$CLAUDE_JOB_DIR/tmp/boot_probe.py" 15 "$CLAUDE_JOB_DIR/tmp/boot.log"
+```
+
+Expected: 打印 `启动 15s 后已终止，日志写入 ...`。
+
+- [ ] **Step 6: 验证驱动具备 WebSocket 客户端能力**
 
 ```bash
 .venv/bin/python -c "
@@ -138,16 +194,17 @@ print('驱动 OK:', type(d).__name__)
 
 Expected: 打印 `驱动 OK: CombinedDriver`，无 AssertionError。
 
-- [ ] **Step 6: 验证工程能启动**
+- [ ] **Step 7: 验证工程能启动**
 
 ```bash
 cd /Users/tano/Documents/GitHub/personal/kasumi_bot
-timeout 15 .venv/bin/nb run 2>&1 | tail -20
+.venv/bin/python "$CLAUDE_JOB_DIR/tmp/boot_probe.py" 15 "$CLAUDE_JOB_DIR/tmp/boot.log"
+tail -20 "$CLAUDE_JOB_DIR/tmp/boot.log"
 ```
 
-Expected: 出现 `NoneBot is initializing...` 与 `Running on http://127.0.0.1:8080`，且**没有** `QQ Adapter need a WebSocketClient Driver` 报错，没有插件加载错误。`timeout` 到点后进程被杀属正常。
+Expected: 日志里出现 `NoneBot is initializing...` 与 `Running on http://127.0.0.1:8080`，且**没有** `QQ Adapter need a WebSocketClient Driver` 报错，没有插件加载错误。进程被探针杀掉是预期的。
 
-- [ ] **Step 7: 提交**
+- [ ] **Step 8: 提交**
 
 ```bash
 git add -A
@@ -353,7 +410,6 @@ DEFAULT_DIFFICULTY_ID = 3
 
 CAR_KEYWORDS: list[str] = [
     "q1", "q2", "q3", "q4",
-    "q1", "q2", "q3", "q4",
     "缺1", "缺2", "缺3", "缺4",
     "差1", "差2", "差3", "差4",
     "3火", "三火", "3把", "三把",
@@ -464,7 +520,11 @@ COMMAND_HEADS: list[tuple[str, str]] = [
 
 `COMMAND_HEADS` 里 `抽卡` 与 `抽卡模拟`、`查卡` 与 `查卡面`/`查卡牌`/`查卡池`、`玩家状态` 与 `玩家状态列表` 都是前缀关系——**顺序无所谓**，任务 3 的查找表会按长度降序排列，长命令头永远先匹配。
 
-注意 `CAR_KEYWORDS` 里 `q1`-`q4` 重复了一次是刻意的：mainline Tsugu 的大小写版本在大写归一化后等价，保留以对齐原文。
+mainline Tsugu 的关键词表里 `q1`-`q4` 有大小写两份，这里只保留小写：`rule.match_car` 会先把消息
+`.lower()` 再匹配，大写条目永远不可达，留下就是死数据。
+
+已核对 `CAR_KEYWORDS` 与 `FAKE_KEYWORDS` 之间没有任何互相包含的组合，所以「含车牌词且不含反词」
+的判定不会自相矛盾。
 
 - [ ] **Step 3: 写最小的 __init__.py**
 
@@ -553,7 +613,8 @@ Expected: 打印 `constants OK: 55 个命令头, 29 个命令`。这两个数字
 
 ```bash
 cd /Users/tano/Documents/GitHub/personal/kasumi_bot
-timeout 15 .venv/bin/nb run 2>&1 | tail -20
+.venv/bin/python "$CLAUDE_JOB_DIR/tmp/boot_probe.py" 15 "$CLAUDE_JOB_DIR/tmp/boot.log"
+tail -20 "$CLAUDE_JOB_DIR/tmp/boot.log"
 ```
 
 Expected: 日志里出现 `Succeeded to import "tsugu"`，无报错。
@@ -2132,7 +2193,8 @@ Expected: 打印 `event 探针全部通过： '<@!BOT_OPENID> 查卡 1399' ...` 
 ```bash
 cd /Users/tano/Documents/GitHub/personal/kasumi_bot
 rm -rf data
-timeout 20 .venv/bin/nb run 2>&1 | grep -iE "orm|migrat|tsugu|error" | head -20
+.venv/bin/python "$CLAUDE_JOB_DIR/tmp/boot_probe.py" 20 "$CLAUDE_JOB_DIR/tmp/boot.log"
+grep -iE "orm|migrat|tsugu|error" "$CLAUDE_JOB_DIR/tmp/boot.log" | head -20
 .venv/bin/python -c "
 import sqlite3
 tables = [r[0] for r in sqlite3.connect('data/db.sqlite3').execute(
@@ -2305,7 +2367,8 @@ async def handle_song_meta(ctx: Ctx) -> None:
 
 ```bash
 cd /Users/tano/Documents/GitHub/personal/kasumi_bot
-timeout 20 .venv/bin/nb run 2>&1 | tail -30
+.venv/bin/python "$CLAUDE_JOB_DIR/tmp/boot_probe.py" 20 "$CLAUDE_JOB_DIR/tmp/boot.log"
+tail -30 "$CLAUDE_JOB_DIR/tmp/boot.log"
 grep -c "@register" src/plugins/tsugu/commands/*.py
 ```
 
@@ -2535,7 +2598,8 @@ async def handle_ycm(ctx: Ctx) -> None:
 
 ```bash
 cd /Users/tano/Documents/GitHub/personal/kasumi_bot
-timeout 20 .venv/bin/nb run 2>&1 | tail -30
+.venv/bin/python "$CLAUDE_JOB_DIR/tmp/boot_probe.py" 20 "$CLAUDE_JOB_DIR/tmp/boot.log"
+tail -30 "$CLAUDE_JOB_DIR/tmp/boot.log"
 grep -h "@register" src/plugins/tsugu/commands/*.py | wc -l
 ```
 
@@ -3011,7 +3075,8 @@ async def handle_help(ctx: Ctx) -> None:
 
 ```bash
 cd /Users/tano/Documents/GitHub/personal/kasumi_bot
-timeout 20 .venv/bin/nb run 2>&1 | tail -30
+.venv/bin/python "$CLAUDE_JOB_DIR/tmp/boot_probe.py" 20 "$CLAUDE_JOB_DIR/tmp/boot.log"
+tail -30 "$CLAUDE_JOB_DIR/tmp/boot.log"
 .venv/bin/python - <<'PY'
 import sys
 sys.path.insert(0, "src/plugins")
@@ -3068,7 +3133,8 @@ Expected: 三条都打印通过。有报错就修，不要用 `# type: ignore` �
 ```bash
 cd /Users/tano/Documents/GitHub/personal/kasumi_bot
 rm -rf data
-timeout 25 .venv/bin/nb run 2>&1 | tee "$CLAUDE_JOB_DIR/tmp/boot.log" | tail -40
+.venv/bin/python "$CLAUDE_JOB_DIR/tmp/boot_probe.py" 25 "$CLAUDE_JOB_DIR/tmp/boot.log"
+tail -40 "$CLAUDE_JOB_DIR/tmp/boot.log"
 echo "--- 检查 ---"
 grep -q "Succeeded to import \"tsugu\"" "$CLAUDE_JOB_DIR/tmp/boot.log" && echo "插件加载 OK"
 ! grep -qiE "traceback|error|failed to" "$CLAUDE_JOB_DIR/tmp/boot.log" && echo "无异常 OK"
