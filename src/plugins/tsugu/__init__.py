@@ -17,6 +17,7 @@ from nonebot import get_plugin_config, on_message
 # ruff 的 TC002 认不出 @tsugu.handle() 是运行时求值装饰器，故显式豁免。
 from nonebot.adapters.qq import Bot  # noqa: TC002
 from nonebot.adapters.qq.event import QQMessageEvent  # noqa: TC002
+from nonebot.exception import MatcherException, ProcessException
 from nonebot.plugin import PluginMetadata, require
 
 # 必须早于下面任何相对导入：`from .commands import ...` 会连锁 import 到 db，
@@ -138,4 +139,15 @@ async def _dispatch(bot: Bot, event: QQMessageEvent) -> None:
         max_messages=config.tsugu_max_messages,
         pending=pending,
     )
-    await handler(ctx)
+
+    try:
+        await handler(ctx)
+    except (MatcherException, ProcessException):
+        # NoneBot 的控制流靠异常实现：finish/reply 抛的 FinishedException、
+        # 跳过的 SkippedException 等都在这两棵树下，必须原样放行，
+        # 否则指令永远走不到「正常结束」，用户反而会收到兜底报错。
+        raise
+    except Exception as exc:  # noqa: BLE001 - 兜底，避免处理器异常变成完全静默
+        text = const.command_failed_text(head)
+        nonebot.logger.opt(exception=exc).error(text)
+        await ctx.reply_error(text)

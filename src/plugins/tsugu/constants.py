@@ -78,6 +78,7 @@ TIER_LISTS: dict[str, list[int]] = {
         400,
         500,
         1000,
+        1500,
         2000,
         3000,
         4000,
@@ -217,6 +218,7 @@ ERR_NOT_BOUND = "用户未绑定player"
 ERR_NOT_BOUND_ON_SERVER = "用户在对应服务器上未绑定player"
 ERR_GROUP_ONLY = "该指令仅在群聊中可用"
 ERR_GACHA_DISABLED = "抽卡功能已关闭"
+ERR_COMMAND_FAILED = "执行指令 {head} 失败"
 
 HTTP_ERROR_TEXTS: dict[int, str] = {
     400: "错误: 请求参数错误, 可能因为版本与后端服务器版本不一致",
@@ -231,6 +233,11 @@ ERR_NETWORK = "错误: 后端服务器连接出错"
 def incomplete_cmd_text(head: str) -> str:
     """参数不完整时的标准两行提示，与 mainline Tsugu 一致。"""
     return f"{ERR_INCOMPLETE_CMD}\n使用以下指令以查看帮助:\n  help {head}"
+
+
+def command_failed_text(head: str) -> str:
+    """处理器抛出未预期异常时的兜底提示，与 mainline Tsugu 一致。"""
+    return ERR_COMMAND_FAILED.format(head=head)
 
 
 # ---- 命令头表 ----
