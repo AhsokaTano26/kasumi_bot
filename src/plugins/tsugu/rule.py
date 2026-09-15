@@ -17,8 +17,16 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
 CAR_PATTERN = re.compile(r"^(\d{5,6})(.*)$", re.DOTALL)
+r"""车牌：开头 5 或 6 位数字，其余全部作为备注。
+
+`re.DOTALL` 是必需的，不是噪音：QQ 消息可以带换行，没有它 `.` 匹配不到换行符，
+多行车牌会被拦腰截断。`\d{5,6}` 贪婪取位数，7 位以上数字开头时取前 6 位、
+余下进备注——这与上游一致（koishi 用无边界的 `/^(\d{6})/`，nonebot-tsugu 用贪婪的
+`^(\d{5,6})`），不要加 `(?!\d)` 之类去"纠正"。"""
+
 MODE_SHORTCUT = re.compile(r"^(.+服)模式$")
 STATUS_SHORTCUT = re.compile(r"^(.+服)玩家状态$")
+"""两个 shortcut，与上游逐字一致（koishi `/^(.+服)模式$/`）。"""
 
 
 @dataclass(frozen=True)

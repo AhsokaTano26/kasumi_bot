@@ -11,12 +11,13 @@ from base64 import b64decode
 from typing import TYPE_CHECKING
 
 from nonebot.adapters.qq import Message, MessageSegment
+from tsugu_api_core._typing import _Response
 
 if TYPE_CHECKING:
     from nonebot.matcher import Matcher
 
-Response = list[dict[str, str]]
-"""Tsugu 后端的统一响应结构。"""
+Response = _Response
+"""Tsugu 后端的统一响应结构，直接用库声明的类型。"""
 
 Part = str | bytes
 """一条待发送的消息：str 是文本，bytes 是图片二进制。"""
@@ -70,7 +71,7 @@ def build_message(part: Part) -> Message:
 
 
 async def send_result(
-    matcher: "Matcher",
+    matcher: type[Matcher],
     items: Response,
     *,
     limit: int,

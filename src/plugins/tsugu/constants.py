@@ -7,9 +7,16 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from tsugu_api_core._typing import ServerId, _DifficultyId
+
 # ---- 服务器 ----
 
-SERVER_ID_TO_NAME: dict[int, str] = {
+# 服务器 ID 就是 0-4。用库里声明的 ServerId 而不是裸 int：tsugu_api_async 的
+# 各接口都要求 ServerId，在源头标对，下游就不用到处 cast。
+SERVER_ID_TO_NAME: dict[ServerId, str] = {
     0: "日服",
     1: "国际服",
     2: "台服",
@@ -18,7 +25,7 @@ SERVER_ID_TO_NAME: dict[int, str] = {
 }
 
 # 服务器名 -> ID。包括英文代号、中文全名和数字字符串。
-SERVER_NAME_TO_ID: dict[str, int] = {
+SERVER_NAME_TO_ID: dict[str, ServerId] = {
     "jp": 0,
     "日服": 0,
     "en": 1,
@@ -93,7 +100,7 @@ def tier_list_text() -> str:
 
 # ---- 难度 ----
 
-DIFFICULTY_NAMES: dict[str, int] = {
+DIFFICULTY_NAMES: dict[str, _DifficultyId] = {
     "ez": 0,
     "easy": 0,
     "简单": 0,
@@ -111,7 +118,7 @@ DIFFICULTY_NAMES: dict[str, int] = {
     "特殊": 4,
 }
 
-DEFAULT_DIFFICULTY_ID = 3
+DEFAULT_DIFFICULTY_ID: _DifficultyId = 3
 """查谱面未指定难度时使用 expert。"""
 
 # ---- 车牌关键词 ----
