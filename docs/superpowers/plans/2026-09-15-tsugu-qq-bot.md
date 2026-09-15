@@ -345,7 +345,12 @@ class Config(BaseModel):
 - [ ] **Step 2: 写 constants.py**
 
 ```python
-"""静态数据表与文案常量。此模块不依赖 NoneBot 运行时，可被探针脚本直接 import。"""
+"""静态数据表与文案常量。
+
+本模块的内容本身不依赖 NoneBot 运行时，但通过 `import tsugu.constants` 访问它时
+会先执行 `tsugu/__init__.py`，那里会调用 `get_plugin_config()`。因此探针脚本必须先
+`nonebot.init()` 再 import，否则抛 `NoneBot has not been initialized`。
+"""
 
 from __future__ import annotations
 
@@ -628,6 +633,45 @@ COMMAND_HEADS: list[tuple[str, str]] = [
     ("help", "help"),
     ("帮助", "help"),
 ]
+
+ALIAS_FIELDS: dict[str, str] = {
+    # 配置字段名 -> 命令 ID
+    # 用户在 .env 里为某个命令追加的别名，分派器会把它们并进命令头表。
+    # 这张映射是必须的：配置字段名与命令 ID 对不上的有 7 处
+    # （switch_index/player_index、default_servers/display_servers、
+    #  ycx/cutoff、ycx_all/cutoff_all、lsycx/cutoff_history），
+    # 靠改名字推导会漏掉它们。
+    "tsugu_open_forward_aliases": "open_forward",
+    "tsugu_close_forward_aliases": "close_forward",
+    "tsugu_bind_player_aliases": "bind_player",
+    "tsugu_unbind_player_aliases": "unbind_player",
+    "tsugu_main_server_aliases": "main_server",
+    "tsugu_default_servers_aliases": "display_servers",
+    "tsugu_player_status_aliases": "player_status",
+    "tsugu_player_list_aliases": "player_list",
+    "tsugu_switch_index_aliases": "player_index",
+    "tsugu_ycm_aliases": "ycm",
+    "tsugu_search_player_aliases": "search_player",
+    "tsugu_search_card_aliases": "search_card",
+    "tsugu_card_illustration_aliases": "card_illustration",
+    "tsugu_search_character_aliases": "search_character",
+    "tsugu_search_event_aliases": "search_event",
+    "tsugu_search_song_aliases": "search_song",
+    "tsugu_song_chart_aliases": "song_chart",
+    "tsugu_song_random_aliases": "song_random",
+    "tsugu_song_meta_aliases": "song_meta",
+    "tsugu_event_stage_aliases": "event_stage",
+    "tsugu_search_gacha_aliases": "search_gacha",
+    "tsugu_ycx_aliases": "cutoff",
+    "tsugu_ycx_all_aliases": "cutoff_all",
+    "tsugu_lsycx_aliases": "cutoff_history",
+    "tsugu_gacha_simulate_aliases": "gacha_simulate",
+}
+"""25 个可配置别名字段与命令 ID 的对应关系。
+
+`gacha_switch` / `gacha_on` / `gacha_off` / `help` 没有对应的别名字段，
+别名表里也查不到，属正常。
+"""
 ```
 
 `COMMAND_HEADS` 里 `抽卡` 与 `抽卡模拟`、`查卡` 与 `查卡面`/`查卡牌`/`查卡池`、`玩家状态` 与 `玩家状态列表` 都是前缀关系——**顺序无所谓**，任务 3 的查找表会按长度降序排列，长命令头永远先匹配。
@@ -657,7 +701,7 @@ __plugin_meta__ = PluginMetadata(
     description="Tsugu BanGDream Bot 的 QQ 官方 Bot 前端",
     usage="发送「help」查看全部指令",
     config=Config,
-    supported_adapters={"~onebot.v11", "~qq"},
+    supported_adapters={"~qq"},
 )
 
 config = get_plugin_config(Config)
@@ -2196,7 +2240,7 @@ __plugin_meta__ = PluginMetadata(
     description="Tsugu BanGDream Bot 的 QQ 官方 Bot 前端",
     usage="发送「help」查看全部指令",
     config=Config,
-    supported_adapters={"~onebot.v11", "~qq"},
+    supported_adapters={"~qq"},
 )
 
 config = get_plugin_config(Config)
@@ -2211,7 +2255,24 @@ tsugu_api_async.settings.userdata_backend_proxy = config.tsugu_data_backend_prox
 tsugu_api_async.settings.use_easy_bg = config.tsugu_use_easy_bg
 tsugu_api_async.settings.compress = config.tsugu_compress
 
-HEAD_TABLE = build_head_table(const.COMMAND_HEADS)
+
+def _collect_heads() -> list[tuple[str, str]]:
+    """静态命令头 + 用户在 .env 里追加的别名。
+
+    别名字段是 Set[str]，在 .env 里必须写成 JSON 数组
+    （`TSUGU_SEARCH_CARD_ALIASES=["查卡","查卡牌"]`）——NoneBot 对复杂类型的
+    环境变量一律走 json.loads，写成逗号分隔会直接抛 SettingsError。
+    """
+    heads = list(const.COMMAND_HEADS)
+    heads.extend(
+        (alias, command)
+        for field, command in const.ALIAS_FIELDS.items()
+        for alias in getattr(config, field)
+    )
+    return heads
+
+
+HEAD_TABLE = build_head_table(_collect_heads())
 
 tsugu = on_message(priority=10, block=True)
 
