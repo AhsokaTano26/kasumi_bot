@@ -3655,6 +3655,15 @@ Expected: 打印 `api 探针全部通过`（Task 5 写的那个探针，此时�
 - 架构：加上「QQ 官方 Bot ← WebSocket → nonebot-adapter-qq → NoneBot2 → src/plugins/tsugu/ → httpx → Tsugu 后端」这条链路，并说明**为什么不使用 `on_command`**（群里 `@bot` 会让 `message[0]` 成为 `MentionUser`，`TrieRule` 不匹配）。
 - 现有插件：`tsugu`（唯一插件），并逐个说明 `rule.py` / `sender.py` / `api.py` / `user.py` / `db.py` / `commands/` 的职责。
 - 环境文件：更新 `.env` 的实际内容，特别标注 `DRIVER` 必须包含 `~websockets`，否则 QQ 适配器启动即失败。
+- **部署约束（必须写进 CLAUDE.md，否则是隐式依赖）**：
+  - **gunicorn 必须单 worker**。绑定流程的待处理状态 `user.pending` 是**进程内存**（`user.py`），
+    多 worker 时用户的下一条消息可能落到另一个进程，绑定会**间歇性静默中断**。
+    现状安全是因为 `Dockerfile` 设了 `ENV MAX_WORKERS 1`，而 `docker/gunicorn_conf.py`
+    默认是 `workers_per_core * cores`——**依赖是隐式的**，谁直接跑 gunicorn 或覆盖该变量就会踩到。
+  - **`.env` 里 set 类型配置必须写 JSON 数组**：`TSUGU_X=["a","b"]`。写逗号分隔会在启动时抛
+    `SettingsError`（来自 NoneBot 自己的 `DotEnvSettingsSource._field_is_complex`，
+    对纯 `set[str]` 返回 `allow_parse_failure=False`）。这与 `nonebot-plugin-tsugu-bangdream-bot`
+    完全一致（它同样是 `Set[str]`），**是对标行为，不是缺陷**。
 - 常见命令：`ruff check src/`、`ruff format src/`、`pyright src/`、`nb run --reload`。
 - 提到设计规格与实现计划的位置：`docs/superpowers/specs/` 与 `docs/superpowers/plans/`。
 
