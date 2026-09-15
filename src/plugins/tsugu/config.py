@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional, Set
-
 from pydantic import BaseModel
 
 
@@ -52,32 +50,32 @@ class Config(BaseModel):
     tsugu_bind_timeout: int = 300
     """绑定流程等待用户回复的秒数。"""
 
-    tsugu_bandori_station_token: Optional[str] = None
+    tsugu_bandori_station_token: str | None = None
     """BandoriStation 令牌，None 时用 Tsugu 后端配置的公共令牌。"""
 
     # ---- 命令别名扩充，与 nonebot-tsugu 同名同义 ----
-    tsugu_open_forward_aliases: Set[str] = set()
-    tsugu_close_forward_aliases: Set[str] = set()
-    tsugu_bind_player_aliases: Set[str] = set()
-    tsugu_unbind_player_aliases: Set[str] = set()
-    tsugu_main_server_aliases: Set[str] = set()
-    tsugu_default_servers_aliases: Set[str] = set()
-    tsugu_player_status_aliases: Set[str] = set()
-    tsugu_player_list_aliases: Set[str] = set()
-    tsugu_switch_index_aliases: Set[str] = set()
-    tsugu_ycm_aliases: Set[str] = set()
-    tsugu_search_player_aliases: Set[str] = set()
-    tsugu_search_card_aliases: Set[str] = set()
-    tsugu_card_illustration_aliases: Set[str] = set()
-    tsugu_search_character_aliases: Set[str] = set()
-    tsugu_search_event_aliases: Set[str] = set()
-    tsugu_search_song_aliases: Set[str] = set()
-    tsugu_song_chart_aliases: Set[str] = set()
-    tsugu_song_random_aliases: Set[str] = set()
-    tsugu_song_meta_aliases: Set[str] = set()
-    tsugu_event_stage_aliases: Set[str] = set()
-    tsugu_search_gacha_aliases: Set[str] = set()
-    tsugu_ycx_aliases: Set[str] = set()
-    tsugu_ycx_all_aliases: Set[str] = set()
-    tsugu_lsycx_aliases: Set[str] = set()
-    tsugu_gacha_simulate_aliases: Set[str] = set()
+    tsugu_open_forward_aliases: set[str] = set()
+    tsugu_close_forward_aliases: set[str] = set()
+    tsugu_bind_player_aliases: set[str] = set()
+    tsugu_unbind_player_aliases: set[str] = set()
+    tsugu_main_server_aliases: set[str] = set()
+    tsugu_default_servers_aliases: set[str] = set()
+    tsugu_player_status_aliases: set[str] = set()
+    tsugu_player_list_aliases: set[str] = set()
+    tsugu_switch_index_aliases: set[str] = set()
+    tsugu_ycm_aliases: set[str] = set()
+    tsugu_search_player_aliases: set[str] = set()
+    tsugu_search_card_aliases: set[str] = set()
+    tsugu_card_illustration_aliases: set[str] = set()
+    tsugu_search_character_aliases: set[str] = set()
+    tsugu_search_event_aliases: set[str] = set()
+    tsugu_search_song_aliases: set[str] = set()
+    tsugu_song_chart_aliases: set[str] = set()
+    tsugu_song_random_aliases: set[str] = set()
+    tsugu_song_meta_aliases: set[str] = set()
+    tsugu_event_stage_aliases: set[str] = set()
+    tsugu_search_gacha_aliases: set[str] = set()
+    tsugu_ycx_aliases: set[str] = set()
+    tsugu_ycx_all_aliases: set[str] = set()
+    tsugu_lsycx_aliases: set[str] = set()
+    tsugu_gacha_simulate_aliases: set[str] = set()

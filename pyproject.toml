@@ -104,3 +104,5 @@ keep-runtime-typing = true
 pythonVersion = "3.10"
 pythonPlatform = "All"
 typeCheckingMode = "standard"
+venvPath = "."
+venv = ".venv"
