@@ -1690,7 +1690,12 @@ from . import constants as const
 
 if TYPE_CHECKING:
     from nonebot.matcher import Matcher
-    from tsugu_api_core._typing import ServerId, _TsuguUser, _UserPlayerInList
+    from tsugu_api_core._typing import (
+        ServerId,
+        _BindingAction,
+        _TsuguUser,
+        _UserPlayerInList,
+    )
 
 
 @dataclass
@@ -1720,7 +1725,7 @@ class User:
 class PendingBind:
     """等待用户回复玩家 ID 的绑定流程。"""
 
-    action: str
+    action: _BindingAction
     """'bind' 或 'unbind'。"""
 
     server: ServerId
