@@ -3422,7 +3422,10 @@ print("help 覆盖全部", len(commands), "个命令")
 PY
 ```
 
-Expected: `nb run` 无报错；打印 `help 覆盖全部 30 个命令`。若报 missing，把缺的命令补进 `USAGES` 与 `HELP_ORDER`。
+Expected: `nb run` 无报错；打印 `help 覆盖全部 29 个命令`。若报 missing，把缺的命令补进 `USAGES` 与 `HELP_ORDER`。
+这里是 **29** 而不是 30：脚本比对的 `COMMAND_HEADS` 不含 `bind_reply`——绑定流程的第二次输入
+不经过命令头匹配，也不该出现在 help 里。（仓库里 `@register` 总数是 30 = 29 个命令 + `bind_reply`，
+见「完成标准」第 5 条。）
 
 - [ ] **Step 4: 静态检查并提交**
 
