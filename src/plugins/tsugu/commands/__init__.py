@@ -6,6 +6,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+import nonebot
+
 from ..sender import Response, send_result
 
 if TYPE_CHECKING:
@@ -68,6 +70,8 @@ def register(command: str) -> Callable[[Handler], Handler]:
     """把处理器登记到分派表的装饰器。"""
 
     def decorator(func: Handler) -> Handler:
+        if command in HANDLERS:
+            nonebot.logger.warning(f"命令 {command} 被重复注册，后者会覆盖前者")
         HANDLERS[command] = func
         return func
 

@@ -65,17 +65,20 @@ def _collect_heads() -> list[tuple[str, str]]:
     环境变量一律走 json.loads，写成逗号分隔会直接抛 SettingsError。
     """
     heads = list(const.COMMAND_HEADS)
-    builtin_heads = {head for head, _ in const.COMMAND_HEADS}
+    taken: dict[str, str] = dict(const.COMMAND_HEADS)
 
     aliases: list[tuple[str, str]] = []
     for field, command in const.ALIAS_FIELDS.items():
         for alias in getattr(config, field):
-            if alias in builtin_heads:
-                # build_head_table 遇到重复命令头是「后者胜」，用户别名会静默改写
-                # 内置命令头的指向。这里至少留一条线索，否则很难排查。
+            owner = taken.get(alias)
+            # 只在**指向不同命令**时才告警：给同一命令补一个它已有的别名
+            # （例如给查曲加 "查曲"）是无操作，不该刷警告。
+            if owner is not None and owner != command:
                 nonebot.logger.warning(
-                    f"配置的别名 {alias!r} 与内置命令头重名，将覆盖它原本指向的命令"
+                    f"配置的别名 {alias!r} 与已有命令头重名，"
+                    f"将把 {owner!r} 改指向 {command!r}"
                 )
+            taken[alias] = command
             aliases.append((alias, command))
 
     heads.extend(aliases)
@@ -96,9 +99,13 @@ async def _dispatch(bot: Bot, event: QQMessageEvent) -> None:
     if not text:
         return
 
-    pending = user.pending.pop(user_id, None)
+    # 这里用 get 而不是 pop：绑定流程要能容忍用户输错一次再重试，
+    # 由 bind_reply 处理器在**成功**时清掉。用 pop 的话任何一次输错都会
+    # 终止流程（用户得重新申请验证码），tsugu_bind_timeout 也就失去意义了。
+    pending = user.pending.get(user_id)
     if pending is not None:
         if time.monotonic() - pending.created_at > config.tsugu_bind_timeout:
+            user.pending.pop(user_id, None)
             await tsugu.finish(const.ERR_BIND_TIMEOUT)
             return
         command, head, args = "bind_reply", "绑定玩家", [text]
