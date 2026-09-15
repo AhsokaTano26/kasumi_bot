@@ -1280,7 +1280,7 @@ git commit -m "feat: 新增响应转换层，处理被动消息条数上限与�
 from __future__ import annotations
 
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 import nonebot
 import tsugu_api_async
@@ -1303,7 +1303,7 @@ from tsugu_api_core.exception import (
 from . import constants as const
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Awaitable, Sequence
 
 Response = _Response
 """Tsugu 后端的统一响应结构，直接用库声明的类型。"""
@@ -1318,7 +1318,7 @@ def _error(text: str) -> Response:
 
 
 def _platform() -> str:
-    """延迟读取平台标识，避免在 NoneBot 初始化前 import 时就触发配置加载。"""
+    """读取配置里的平台标识。"""
     from nonebot import get_plugin_config
 
     from .config import Config
@@ -1333,15 +1333,20 @@ def describe_error(exc: BaseException) -> str:
     if isinstance(exc, FailedException):
         if exc.status_code == HTTPStatus.UNPROCESSABLE_ENTITY:
             return f"错误: 无效的请求 ({exc.data})"
-        if exc.status_code in const.HTTP_ERROR_TEXTS:
-            return const.HTTP_ERROR_TEXTS[exc.status_code]
-        return str(exc.data)
-    if isinstance(exc, (HTTPStatusError, TsuguException)):
+        return const.HTTP_ERROR_TEXTS.get(exc.status_code, str(exc.data))
+
+    if isinstance(exc, HTTPStatusError):
         return const.ERR_NETWORK
+
+    if isinstance(exc, TsuguException):
+        # 基类 TsuguException 的 msg 本身就是给用户看的中文
+        # （如车站的 RoomQueryFailure / RoomSubmitFailure）
+        return str(exc)
+
     return const.ERR_NETWORK
 
 
-async def _query(coro: Any) -> Response:
+async def _query(coro: Awaitable[Response]) -> Response:
     """执行一次后端查询，把任何异常收敛成错误文本响应。"""
     try:
         return await coro
@@ -1359,8 +1364,7 @@ async def resolve_server(name: str) -> ServerId:
     先查本地表（英文代号 / 中文全名 / 数字），未命中再走后端模糊搜索。
     失败抛 ValueError，文案已可直接展示。
     """
-    if (server_id := const.SERVER_NAME_TO_ID.get(name)) is not None:
-        return server_id
+    # 表里所有键都是小写，所以只查小写形式即可覆盖精确输入
     if (server_id := const.SERVER_NAME_TO_ID.get(name.lower())) is not None:
         return server_id
 
@@ -1416,7 +1420,7 @@ async def change_user(user_id: str, update: PartialTsuguUser) -> str | None:
         nonebot.logger.opt(exception=exc).debug("写入用户数据失败")
         return describe_error(exc)
 
-    if response.get("status") == "failed":
+    if response.get("status") != "success":
         return str(response.get("data", "错误: 修改用户数据失败"))
     return None
 
@@ -2263,11 +2267,16 @@ nonebot 的 TrieRule 完全不匹配。所以这里只注册一个 on_message，
 from __future__ import annotations
 
 import time
-from typing import Any
 
 import nonebot
 import tsugu_api_async
 from nonebot import get_plugin_config, on_message
+
+# 这两个必须是运行时导入：NoneBot 靠运行时求值注解来做依赖注入，
+# 注解写成 Any 会直接抛 `ValueError: Unknown parameter bot`。
+# ruff 的 TC002 认不出 @tsugu.handle() 是运行时求值装饰器，故显式豁免。
+from nonebot.adapters.qq import Bot  # noqa: TC002
+from nonebot.adapters.qq.event import QQMessageEvent  # noqa: TC002
 from nonebot.plugin import PluginMetadata
 
 from . import car, user
@@ -2334,7 +2343,9 @@ tsugu = on_message(priority=10, block=True)
 
 
 @tsugu.handle()
-async def _dispatch(bot: Any, event: Any) -> None:
+async def _dispatch(bot: Bot, event: QQMessageEvent) -> None:
+    # 这两个注解必须是运行时导入的：NoneBot 靠运行时求值注解来做依赖注入，
+    # 写成 Any 会直接抛 ValueError: Unknown parameter bot。
     user_id = event.get_user_id()
     text = normalize(event.get_message().extract_plain_text())
     if not text:
