@@ -3462,7 +3462,89 @@ cd /Users/tano/Documents/GitHub/personal/kasumi_bot
 
 Expected: 打印 `分派路径探针全部通过`。
 
-- [ ] **Step 5: 对公共后端跑一次真实查询回归**
+- [ ] **Step 5: 用桩 matcher 覆盖实际发送路径**
+
+Task 4 的探针只覆盖了 `split_messages` / `build_message` 两个纯函数，`send_result`
+的发送循环与 @ 前缀拼接一直没有运行时覆盖——而它是所有命令最终都会走的那条路。
+这里用桩 matcher 补上。
+
+写到 `$CLAUDE_JOB_DIR/tmp/probe_send.py`：
+
+```python
+import asyncio
+import sys
+from base64 import b64encode
+
+sys.path.insert(0, "src/plugins")
+
+import nonebot
+
+nonebot.init()
+
+from nonebot.adapters.qq import Message
+
+from tsugu.sender import send_result
+
+
+class StubMatcher:
+    """只记录收到了什么，不碰网络。"""
+
+    def __init__(self) -> None:
+        self.sent: list[Message] = []
+
+    async def send(self, message: Message) -> None:
+        self.sent.append(message)
+
+
+PNG = b"\x89PNG\r\n\x1a\n" + b"fake"
+ITEMS = [
+    {"type": "string", "string": "第一段"},
+    {"type": "base64", "string": b64encode(PNG).decode()},
+]
+
+
+async def main() -> None:
+    # 不带 @：文本与图片各一条，顺序保持
+    matcher = StubMatcher()
+    await send_result(matcher, ITEMS, limit=5)
+    assert len(matcher.sent) == 2, matcher.sent
+    assert matcher.sent[0][0].type == "text", matcher.sent[0]
+    assert matcher.sent[1][0].type == "file_image", matcher.sent[1]
+
+    # 带 @：只加在第一条上
+    matcher = StubMatcher()
+    await send_result(matcher, ITEMS, limit=5, at_user_id="USER_OPENID")
+    assert len(matcher.sent) == 2
+    assert matcher.sent[0][0].type == "mention_user", matcher.sent[0]
+    assert matcher.sent[1][0].type == "file_image", "第二条不该带 @"
+
+    # 空响应不发任何消息
+    matcher = StubMatcher()
+    await send_result(matcher, [], limit=5)
+    assert matcher.sent == []
+
+    # 超限时按 limit 截断
+    matcher = StubMatcher()
+    await send_result(matcher, [ITEMS[1]] * 8, limit=5)
+    assert len(matcher.sent) == 5, len(matcher.sent)
+    assert matcher.sent[-1][0].data["text"].startswith("结果过长"), matcher.sent[-1]
+
+    print("send_result 桩测通过")
+
+
+asyncio.run(main())
+```
+
+运行：
+
+```bash
+cd /Users/tano/Documents/GitHub/personal/kasumi_bot
+.venv/bin/python "$CLAUDE_JOB_DIR/tmp/probe_send.py"
+```
+
+Expected: 打印 `send_result 桩测通过`。
+
+- [ ] **Step 6: 对公共后端跑一次真实查询回归**
 
 ```bash
 cd /Users/tano/Documents/GitHub/personal/kasumi_bot
@@ -3471,7 +3553,7 @@ cd /Users/tano/Documents/GitHub/personal/kasumi_bot
 
 Expected: 打印 `api 探针全部通过`（Task 5 写的那个探针，此时应当仍然通过）。
 
-- [ ] **Step 6: 更新 CLAUDE.md**
+- [ ] **Step 7: 更新 CLAUDE.md**
 
 把「Project Overview」「Existing plugins」「Adding a New Plugin」等段落改成现状：
 
@@ -3482,14 +3564,14 @@ Expected: 打印 `api 探针全部通过`（Task 5 写的那个探针，此时�
 - 常见命令：`ruff check src/`、`ruff format src/`、`pyright src/`、`nb run --reload`。
 - 提到设计规格与实现计划的位置：`docs/superpowers/specs/` 与 `docs/superpowers/plans/`。
 
-- [ ] **Step 7: 最终提交**
+- [ ] **Step 8: 最终提交**
 
 ```bash
 git add -A
 git commit -m "docs: 更新 CLAUDE.md 以反映 Tsugu 改造后的架构"
 ```
 
-- [ ] **Step 8: 交付说明**
+- [ ] **Step 9: 交付说明**
 
 向用户报告：
 - 分支名与提交列表
