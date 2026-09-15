@@ -26,9 +26,12 @@
 - **类型检查**：`pyright src/` 必须 0 error。直接运行即可，不需要加 `--pythonpath`——Task 2 已在
   `[tool.pyright]` 里补上 `venvPath` / `venv` 两个设置（实测：不加时 pyright 解析不出 `.venv` 里的
   `nonebot`、`pydantic`、`tsugu_api_async`，会报 4 条 `reportMissingImports`）。
-- **导入风格**：跨子包用绝对导入（`from tsugu import api` / `from tsugu import constants as const`），
-  同包内用单点相对导入（`from . import Ctx, register`）。**不要用父级相对导入 `from .. import x`**——
-  ruff 的 `TID252` 会报错。常量模块的别名用小写 `const`，不要用 `K`（`N812` 禁止小写模块用大写别名）。
+- **导入风格**：跨子包用**父级相对导入**（`from .. import api` / `from .. import constants as const`），
+  同包内用单点相对导入（`from . import Ctx, register`）。`TID252` 已加入 ruff `ignore`，理由是
+  **绝对导入会让 bot 无法启动**：nonebot 按 `src.plugins.tsugu` 加载插件，而 `src/plugins` 不在
+  `sys.path` 上，`from tsugu import api` 在运行时必然 `ModuleNotFoundError`（Task 7 实测）。
+  `[tool.pyright] extraPaths` 已随之删除——它只是在掩盖这个问题。
+  常量模块的别名用小写 `const`，不要用 `K`（`N812` 禁止小写模块用大写别名）。
 - **布尔参数**：一律写成仅关键字参数（`*, enabled: bool`），调用时用 `enabled=True`（`FBT001`/`FBT003`）。
 - **`except Exception`**：**一律要加 `# noqa: BLE001`**。实测（ruff 0.15.13 + 本项目配置）即使写成
   `except Exception as exc:` 并在体内使用 `exc`，BLE001 依然触发，所以这条 noqa 是必需的，不是可选的。
