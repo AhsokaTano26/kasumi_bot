@@ -15,12 +15,20 @@
 - **Python 版本**：`requires-python = ">=3.10, <4.0"`，ruff `target-version = "py310"`，pyright `pythonVersion = "3.10"`。
   这个下限是实测出来的，不是随意选的：`nonebot2` 2.5.0 声明 `>=3.10, <4.0`、`nonebot-adapter-qq` 1.7.1 声明 `>=3.10, <4`、
   `websockets` 16.0 声明 `>=3.10`，所以 3.9 根本无法安装这套依赖。Task 1 已把三处声明改到 3.10。
-  代码仍然统一用 `from __future__ import annotations` + `typing.Optional/Union` 写类型——这在 3.10 下同样合法，
-  且风格统一，没有必要改用 `X | Y`。
+- **类型注解风格**：用现代写法——内置泛型小写（`list[X]`、`dict[K, V]`、`set[X]`、`tuple[X, ...]`）、
+  联合类型用 `X | None` / `X | Y`、抽象类型从 `collections.abc` 导入（`Iterable`、`Sequence`、`Awaitable`、`Callable`）。
+  每个文件顶部写 `from __future__ import annotations`。
+  这不是风格偏好而是硬约束：`pyproject.toml` 的 ruff 选择集包含 `UP`，且 `target-version = "py310"`，
+  所以 `List[X]` / `Optional[X]` / `from typing import Dict` 会直接让 `ruff check src/` 报错（UP006/UP035/UP045）。
+  `[tool.ruff.lint.pyupgrade] keep-runtime-typing = true` **不会**抑制这三条规则（ruff 0.15.13 实测，true/false 输出完全一致）。
+  从 `typing` 只导入 `Any`、`TYPE_CHECKING` 这类真正还需要的东西。
 - **代码风格**：ruff `line-length = 88`、LF 行尾。提交前必须 `ruff check src/` 与 `ruff format src/` 均无输出。
 - **类型检查**：`pyright src/` 必须 0 error。
 - **提交信息**：**只能一句话**，形如 `feat: 新增触发层`。不留正文、不留空行、**绝不加 `Co-Authored-By` 或任何 Claude 字样**。
 - **不写 pytest 测试套件**（用户明确要求精简）。每个任务的验证用一次性探针脚本或真实后端调用完成。探针脚本写到 `$CLAUDE_JOB_DIR/tmp/`（该变量未设置时用 `/tmp`），**不要提交到仓库**。
+  探针脚本的固定前缀：`sys.path.insert(0, "src/plugins")` 之后必须紧跟 `import nonebot` + `nonebot.init()`，**然后**才能 import `tsugu.*`。
+  原因：`tsugu/__init__.py` 在 import 时就会调用 `get_plugin_config()`，未初始化 NoneBot 时直接抛 `NoneBot has not been initialized`。
+  直接 import 包即可，不需要 `nonebot.load_plugin()`——探针不跑 bot 事件循环。
 - **用户数据平台标识**：固定 `"red"`，通过 `TSUGU_PLATFORM` 可改。
 - **配置项命名**：全部 `TSUGU_` 前缀，字段名与 `nonebot-plugin-tsugu-bangdream-bot` 保持一致。
 - **`nonebot2[websockets]` 必须保留**：QQ 适配器连接 QQ 网关依赖它提供的 `WebSocketClientMixin` 驱动，没有它适配器启动即抛异常。
@@ -245,7 +253,6 @@ git commit -m "refactor: 移除演示插件并补齐 QQ 适配器所需的驱动
 
 from __future__ import annotations
 
-from typing import Optional, Set
 
 from pydantic import BaseModel
 
@@ -295,35 +302,35 @@ class Config(BaseModel):
     tsugu_bind_timeout: int = 300
     """绑定流程等待用户回复的秒数。"""
 
-    tsugu_bandori_station_token: Optional[str] = None
+    tsugu_bandori_station_token: str | None = None
     """BandoriStation 令牌，None 时用 Tsugu 后端配置的公共令牌。"""
 
     # ---- 命令别名扩充，与 nonebot-tsugu 同名同义 ----
-    tsugu_open_forward_aliases: Set[str] = set()
-    tsugu_close_forward_aliases: Set[str] = set()
-    tsugu_bind_player_aliases: Set[str] = set()
-    tsugu_unbind_player_aliases: Set[str] = set()
-    tsugu_main_server_aliases: Set[str] = set()
-    tsugu_default_servers_aliases: Set[str] = set()
-    tsugu_player_status_aliases: Set[str] = set()
-    tsugu_player_list_aliases: Set[str] = set()
-    tsugu_switch_index_aliases: Set[str] = set()
-    tsugu_ycm_aliases: Set[str] = set()
-    tsugu_search_player_aliases: Set[str] = set()
-    tsugu_search_card_aliases: Set[str] = set()
-    tsugu_card_illustration_aliases: Set[str] = set()
-    tsugu_search_character_aliases: Set[str] = set()
-    tsugu_search_event_aliases: Set[str] = set()
-    tsugu_search_song_aliases: Set[str] = set()
-    tsugu_song_chart_aliases: Set[str] = set()
-    tsugu_song_random_aliases: Set[str] = set()
-    tsugu_song_meta_aliases: Set[str] = set()
-    tsugu_event_stage_aliases: Set[str] = set()
-    tsugu_search_gacha_aliases: Set[str] = set()
-    tsugu_ycx_aliases: Set[str] = set()
-    tsugu_ycx_all_aliases: Set[str] = set()
-    tsugu_lsycx_aliases: Set[str] = set()
-    tsugu_gacha_simulate_aliases: Set[str] = set()
+    tsugu_open_forward_aliases: set[str] = set()
+    tsugu_close_forward_aliases: set[str] = set()
+    tsugu_bind_player_aliases: set[str] = set()
+    tsugu_unbind_player_aliases: set[str] = set()
+    tsugu_main_server_aliases: set[str] = set()
+    tsugu_default_servers_aliases: set[str] = set()
+    tsugu_player_status_aliases: set[str] = set()
+    tsugu_player_list_aliases: set[str] = set()
+    tsugu_switch_index_aliases: set[str] = set()
+    tsugu_ycm_aliases: set[str] = set()
+    tsugu_search_player_aliases: set[str] = set()
+    tsugu_search_card_aliases: set[str] = set()
+    tsugu_card_illustration_aliases: set[str] = set()
+    tsugu_search_character_aliases: set[str] = set()
+    tsugu_search_event_aliases: set[str] = set()
+    tsugu_search_song_aliases: set[str] = set()
+    tsugu_song_chart_aliases: set[str] = set()
+    tsugu_song_random_aliases: set[str] = set()
+    tsugu_song_meta_aliases: set[str] = set()
+    tsugu_event_stage_aliases: set[str] = set()
+    tsugu_search_gacha_aliases: set[str] = set()
+    tsugu_ycx_aliases: set[str] = set()
+    tsugu_ycx_all_aliases: set[str] = set()
+    tsugu_lsycx_aliases: set[str] = set()
+    tsugu_gacha_simulate_aliases: set[str] = set()
 ```
 
 - [ ] **Step 2: 写 constants.py**
@@ -573,6 +580,7 @@ tsugu_api_async.settings.compress = config.tsugu_compress
 cd /Users/tano/Documents/GitHub/personal/kasumi_bot
 .venv/bin/python -c "
 import sys; sys.path.insert(0, 'src/plugins')
+import nonebot; nonebot.init()
 from tsugu.config import Config
 c = Config()
 assert c.tsugu_platform == 'red'
@@ -594,6 +602,7 @@ Expected: 打印 `Config 默认值 OK`。
 cd /Users/tano/Documents/GitHub/personal/kasumi_bot
 .venv/bin/python -c "
 import sys; sys.path.insert(0, 'src/plugins')
+import nonebot; nonebot.init()
 from tsugu import constants as K
 assert K.SERVER_NAME_TO_ID['cn'] == 3
 assert K.SERVER_NAME_TO_ID['国服'] == 3
@@ -667,7 +676,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Dict, Iterable, List, Optional, Tuple
+from collections.abc import Iterable
 
 CAR_PATTERN = re.compile(r"^(\d{5,6})(.*)$", re.DOTALL)
 MODE_SHORTCUT = re.compile(r"^(.+服)模式$")
@@ -684,7 +693,7 @@ class Match:
     head: str
     """实际命中的命令头，用于生成帮助提示。"""
 
-    args: List[str] = field(default_factory=list)
+    args: list[str] = field(default_factory=list)
     """按空白切分后的参数。"""
 
 
@@ -696,7 +705,7 @@ def normalize(text: str) -> str:
     return text.strip()
 
 
-def build_head_table(heads: Iterable[Tuple[str, str]]) -> Dict[str, str]:
+def build_head_table(heads: Iterable[tuple[str, str]]) -> dict[str, str]:
     """把 (命令头, 命令ID) 按命令头长度降序排成查找表。
 
     保持插入顺序很关键：dict 在 3.7+ 保证插入顺序，遍历时「查卡面」
@@ -708,10 +717,10 @@ def build_head_table(heads: Iterable[Tuple[str, str]]) -> Dict[str, str]:
 
 def match_command(
     text: str,
-    table: Dict[str, str],
+    table: dict[str, str],
     *,
     no_space: bool = False,
-) -> Optional[Match]:
+) -> Match | None:
     """在 text 里匹配命令头。没有命中返回 None。
 
     no_space=False（默认）时命令头之后必须是空白或字符串结束；
@@ -744,7 +753,7 @@ def match_car(
     text: str,
     car_keywords: Iterable[str],
     fake_keywords: Iterable[str],
-) -> Optional[Tuple[int, str]]:
+) -> tuple[int, str] | None:
     """识别车牌消息。
 
     规则：以 5 或 6 位数字开头，其余部分包含至少一个车牌关键词，
@@ -763,7 +772,7 @@ def match_car(
     return int(matched.group(1)), rest
 
 
-def get_group_openid(event: object) -> Optional[str]:
+def get_group_openid(event: object) -> str | None:
     """取出群 openid；私聊事件没有这个字段。"""
     return getattr(event, "group_openid", None)
 ```
@@ -776,6 +785,11 @@ def get_group_openid(event: object) -> Optional[str]:
 import sys
 
 sys.path.insert(0, "src/plugins")
+
+import nonebot
+
+# tsugu/__init__.py 在 import 时就会调用 get_plugin_config，必须先初始化 NoneBot
+nonebot.init()
 
 from tsugu import constants as K
 from tsugu.rule import (
@@ -867,7 +881,7 @@ git commit -m "feat: 新增 QQ 触发层，支持命令头匹配、shortcut 与�
 - Consumes: 无（只依赖 nonebot-adapter-qq）
 - Produces:
   - `sender.Response = List[Dict[str, str]]`
-  - `sender.Part = Union[str, bytes]`（str = 一条文本消息，bytes = 一张图片）
+  - `sender.Part = str | bytes`（str = 一条文本消息，bytes = 一张图片）
   - `sender.split_messages(items: Response, limit: int) -> List[Part]`（纯函数）
   - `sender.build_message(part: Part) -> Message`
   - `sender.send_result(matcher, items, *, limit, at_user_id=None) -> None`（async）
@@ -885,22 +899,21 @@ QQ 官方平台限制同一个 msg_id 最多回复 5 条被动消息，所以不
 from __future__ import annotations
 
 from base64 import b64decode
-from typing import TYPE_CHECKING, Dict, List, Optional, Union
+from typing import TYPE_CHECKING
 
 from nonebot.adapters.qq import Message, MessageSegment
 
 if TYPE_CHECKING:
-    from nonebot.adapters.qq import Bot, MessageEvent
     from nonebot.matcher import Matcher
 
-Response = List[Dict[str, str]]
+Response = list[dict[str, str]]
 """Tsugu 后端的统一响应结构。"""
 
-Part = Union[str, bytes]
+Part = str | bytes
 """一条待发送的消息：str 是文本，bytes 是图片二进制。"""
 
 
-def split_messages(items: Response, limit: int) -> List[Part]:
+def split_messages(items: Response, limit: int) -> list[Part]:
     """把后端响应合并、截断成待发送的消息序列。
 
     连续的 string 段合并为一条文本消息；每个 base64 段单独作为一条图片消息。
@@ -909,8 +922,8 @@ def split_messages(items: Response, limit: int) -> List[Part]:
     """
     limit = max(limit, 1)
 
-    parts: List[Part] = []
-    buffer: List[str] = []
+    parts: list[Part] = []
+    buffer: list[str] = []
 
     def flush() -> None:
         if buffer:
@@ -948,7 +961,7 @@ async def send_result(
     items: Response,
     *,
     limit: int,
-    at_user_id: Optional[str] = None,
+    at_user_id: str | None = None,
 ) -> None:
     """按顺序发出全部消息。
 
@@ -976,7 +989,12 @@ from base64 import b64encode
 
 sys.path.insert(0, "src/plugins")
 
-from nonebot.adapters.qq import Message, MessageSegment
+import nonebot
+
+# tsugu/__init__.py 在 import 时就会调用 get_plugin_config，必须先初始化 NoneBot
+nonebot.init()
+
+from nonebot.adapters.qq import Message
 
 from tsugu.sender import build_message, split_messages
 
@@ -1086,7 +1104,8 @@ git commit -m "feat: 新增响应转换层，处理被动消息条数上限与�
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any
+from collections.abc import Sequence
 
 import nonebot
 import tsugu_api_async
@@ -1099,7 +1118,7 @@ from tsugu_api_core.exception import (
 
 from . import constants as K
 
-Response = List[Dict[str, str]]
+Response = list[dict[str, str]]
 """Tsugu 后端的统一响应结构。"""
 
 
@@ -1188,7 +1207,7 @@ async def resolve_difficulty(name: str) -> int:
 # ---- 用户数据 ----
 
 
-async def load_user(user_id: str) -> Dict[str, Any]:
+async def load_user(user_id: str) -> dict[str, Any]:
     """读取用户数据。后端对不存在的用户会自动创建。"""
     try:
         response = await tsugu_api_async.get_user_data(_platform(), user_id)
@@ -1201,7 +1220,7 @@ async def load_user(user_id: str) -> Dict[str, Any]:
     return response["data"]
 
 
-async def change_user(user_id: str, update: Dict[str, Any]) -> Optional[str]:
+async def change_user(user_id: str, update: dict[str, Any]) -> str | None:
     """写入用户数据。成功返回 None，失败返回可直接展示的错误文案。"""
     try:
         response = await tsugu_api_async.change_user_data(
@@ -1288,7 +1307,7 @@ async def song_meta(servers: Sequence[int], server: int) -> Response:
 
 
 async def event_stage(
-    server: int, event_id: Optional[int], meta: bool
+    server: int, event_id: int | None, meta: bool
 ) -> Response:
     return await _query(tsugu_api_async.event_stage(server, event_id, meta))
 
@@ -1298,30 +1317,30 @@ async def search_player(player_id: int, server: int) -> Response:
 
 
 async def gacha_simulate(
-    server: int, times: Optional[int], gacha_id: Optional[int]
+    server: int, times: int | None, gacha_id: int | None
 ) -> Response:
     return await _query(tsugu_api_async.gacha_simulate(server, times, gacha_id))
 
 
 async def cutoff_detail(
-    server: int, tier: int, event_id: Optional[int]
+    server: int, tier: int, event_id: int | None
 ) -> Response:
     return await _query(tsugu_api_async.cutoff_detail(server, tier, event_id))
 
 
-async def cutoff_all(server: int, event_id: Optional[int]) -> Response:
+async def cutoff_all(server: int, event_id: int | None) -> Response:
     return await _query(tsugu_api_async.cutoff_all(server, event_id))
 
 
 async def cutoff_history(
-    server: int, tier: int, event_id: Optional[int]
+    server: int, tier: int, event_id: int | None
 ) -> Response:
     return await _query(
         tsugu_api_async.cutoff_list_of_recent_event(server, tier, event_id)
     )
 
 
-async def query_all_rooms() -> List[Dict[str, Any]]:
+async def query_all_rooms() -> list[dict[str, Any]]:
     """车站里的全部房间号。
 
     注意这个接口不返回 Response 列表而是房间字典列表，为了和查询接口
@@ -1338,7 +1357,7 @@ async def query_all_rooms() -> List[Dict[str, Any]]:
     return list(response["data"])
 
 
-async def render_room_list(rooms: List[Dict[str, Any]]) -> Response:
+async def render_room_list(rooms: list[dict[str, Any]]) -> Response:
     """把房间列表交给后端画成图片。"""
     return await _query(tsugu_api_async.room_list(rooms))
 ```
@@ -1352,6 +1371,11 @@ import asyncio
 import sys
 
 sys.path.insert(0, "src/plugins")
+
+import nonebot
+
+# tsugu/__init__.py 在 import 时就会调用 get_plugin_config，必须先初始化 NoneBot
+nonebot.init()
 
 import tsugu_api_async
 
@@ -1473,7 +1497,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from . import api
 from . import constants as K
@@ -1487,13 +1511,13 @@ class User:
     """用户数据的可读视图。字段名与后端 tsuguUser 一一对应。"""
 
     main_server: int = 3
-    displayed_server_list: List[int] = field(default_factory=lambda: [3, 1])
+    displayed_server_list: list[int] = field(default_factory=lambda: [3, 1])
     share_room_number: bool = True
     user_player_index: int = 0
-    user_player_list: List[Dict[str, int]] = field(default_factory=list)
+    user_player_list: list[dict[str, int]] = field(default_factory=list)
 
     @classmethod
-    def from_raw(cls, raw: Dict[str, Any]) -> "User":
+    def from_raw(cls, raw: dict[str, Any]) -> "User":
         return cls(
             main_server=int(raw.get("mainServer", 3)),
             displayed_server_list=[
@@ -1516,11 +1540,11 @@ class PendingBind:
     created_at: float = field(default_factory=time.monotonic)
     """创建时刻，用于超时判断。"""
 
-    player_id: Optional[int] = None
+    player_id: int | None = None
     """解绑时已确定要解绑的玩家；绑定时为 None。"""
 
 
-pending: Dict[str, PendingBind] = {}
+pending: dict[str, PendingBind] = {}
 """用户 ID -> 待处理的绑定流程。进程内存，重启即失效，这是期望行为。"""
 
 
@@ -1543,8 +1567,8 @@ async def load_user_or_finish(matcher: "Matcher", user_id: str) -> User:
 
 
 def pick_player(
-    user: User, server: Optional[int] = None, index: Optional[int] = None
-) -> Dict[str, int]:
+    user: User, server: int | None = None, index: int | None = None
+) -> dict[str, int]:
     """按 mainline Tsugu 的规则选出要展示的玩家绑定。
 
     index 给定时按 1 起的序号取；否则先看默认索引那条是不是在目标服务器上，
@@ -1574,7 +1598,7 @@ def pick_player(
 
 def build_player_list_text(user: User) -> str:
     """玩家状态列表命令的纯文本回复。"""
-    lines: List[str] = []
+    lines: list[str] = []
     if not user.user_player_list:
         lines.append(K.ERR_NOT_BOUND_ANY)
     else:
@@ -1611,6 +1635,11 @@ def build_bind_prompt(server: int, code: int) -> str:
 import sys
 
 sys.path.insert(0, "src/plugins")
+
+import nonebot
+
+# tsugu/__init__.py 在 import 时就会调用 get_plugin_config，必须先初始化 NoneBot
+nonebot.init()
 
 from tsugu import constants as K
 from tsugu.user import User, build_bind_prompt, build_player_list_text, pick_player
@@ -1886,7 +1915,8 @@ async def maybe_forward(event: Any, user_id: str, text: str) -> bool:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
+from collections.abc import Awaitable, Callable
 
 from ..sender import Response, send_result
 
@@ -1908,12 +1938,12 @@ class Ctx:
     bot: "Bot"
     event: Any
     user_id: str
-    group_openid: Optional[str]
-    args: List[str]
+    group_openid: str | None
+    args: list[str]
     head: str
-    at_user_id: Optional[str]
+    at_user_id: str | None
     max_messages: int
-    pending: Optional["PendingBind"] = None
+    pending: "PendingBind" | None = None
 
     async def reply(self, items: Response) -> None:
         """发送后端响应，自动处理条数上限。"""
@@ -1940,7 +1970,7 @@ class Ctx:
 Handler = Callable[[Ctx], Awaitable[None]]
 """命令处理器。"""
 
-HANDLERS: Dict[str, Handler] = {}
+HANDLERS: dict[str, Handler] = {}
 """命令 ID -> 处理器。各命令模块在 import 时注册。"""
 
 
@@ -2145,10 +2175,15 @@ import sys
 
 sys.path.insert(0, "src/plugins")
 
+import nonebot
+
+# tsugu/__init__.py 在 import 时就会调用 get_plugin_config，必须先初始化 NoneBot
+nonebot.init()
+
 from nonebot.adapters.qq.event import GroupAtMessageCreateEvent
 
 from tsugu import constants as K
-from tsugu.rule import apply_shortcut, build_head_table, get_group_openid, match_command, normalize
+from tsugu.rule import build_head_table, get_group_openid, match_command, normalize
 
 table = build_head_table(K.COMMAND_HEADS)
 
@@ -2407,7 +2442,6 @@ git commit -m "feat: 新增查卡、查角色与查曲系列命令"
 
 from __future__ import annotations
 
-from typing import Optional
 
 from .. import api, user
 from .. import constants as K
@@ -2434,7 +2468,7 @@ async def handle_event_stage(ctx: Ctx) -> None:
     meta = META_FLAG in ctx.args
     positional = [arg for arg in ctx.args if arg != META_FLAG]
 
-    event_id: Optional[int] = None
+    event_id: int | None = None
     if positional:
         if not positional[0].isdigit():
             await ctx.reply_error(K.incomplete_cmd_text(ctx.head))
@@ -2457,7 +2491,6 @@ async def handle_event_stage(ctx: Ctx) -> None:
 
 from __future__ import annotations
 
-from typing import List, Optional, Tuple
 
 from .. import api, user
 from .. import constants as K
@@ -2465,16 +2498,16 @@ from . import Ctx, register
 
 
 async def _resolve_event_and_server(
-    ctx: Ctx, rest: List[str]
-) -> Optional[Tuple[Optional[int], Optional[int]]]:
+    ctx: Ctx, rest: list[str]
+) -> tuple[int | None, int | None] | None:
     """从剩余参数里解析出 (活动ID, 服务器ID)。解析失败时已回复错误并返回 None。"""
     rest = list(rest)
 
-    event_id: Optional[int] = None
+    event_id: int | None = None
     if rest and rest[0].isdigit():
         event_id = int(rest.pop(0))
 
-    server: Optional[int] = None
+    server: int | None = None
     if rest:
         try:
             server = await api.resolve_server(rest[0])
@@ -2636,7 +2669,6 @@ git commit -m "feat: 新增查活动、预测线、查玩家与车站命令"
 
 from __future__ import annotations
 
-from typing import List, Optional
 
 from .. import api, user
 from .. import constants as K
@@ -2771,7 +2803,7 @@ async def handle_display_servers(ctx: Ctx) -> None:
         await ctx.reply_error("错误: 请指定至少一个服务器")
         return
 
-    servers: List[int] = []
+    servers: list[int] = []
     for name in ctx.args:
         try:
             server = await api.resolve_server(name)
@@ -2797,8 +2829,8 @@ async def handle_display_servers(ctx: Ctx) -> None:
 async def handle_player_status(ctx: Ctx) -> None:
     tsugu_user = await user.load_user_or_finish(ctx.matcher, ctx.user_id)
 
-    index: Optional[int] = None
-    server: Optional[int] = None
+    index: int | None = None
+    server: int | None = None
 
     if ctx.args:
         if ctx.args[0].isdigit():
@@ -2881,12 +2913,11 @@ USAGES 是帮助文本的唯一来源：命令的详细用法从这里读，help
 
 from __future__ import annotations
 
-from typing import Dict, List
 
 from .. import constants as K
 from . import Ctx, register
 
-USAGES: Dict[str, str] = {
+USAGES: dict[str, str] = {
     "help": """help [命令名]
 显示全部命令，或查看某条命令的详细用法
 示例:
@@ -3014,7 +3045,7 @@ USAGES: Dict[str, str] = {
 关闭本群的抽卡功能，仅群聊可用""",
 }
 
-HELP_ORDER: List[str] = [
+HELP_ORDER: list[str] = [
     "search_card",
     "card_illustration",
     "search_character",
@@ -3047,7 +3078,7 @@ HELP_ORDER: List[str] = [
 ]
 
 
-def heads_of(command: str) -> List[str]:
+def heads_of(command: str) -> list[str]:
     """某个命令 ID 对应的全部命令头。"""
     return [head for head, cmd in K.COMMAND_HEADS if cmd == command]
 
@@ -3084,6 +3115,11 @@ tail -30 "$CLAUDE_JOB_DIR/tmp/boot.log"
 .venv/bin/python - <<'PY'
 import sys
 sys.path.insert(0, "src/plugins")
+
+import nonebot
+
+# tsugu/__init__.py 在 import 时就会调用 get_plugin_config，必须先初始化 NoneBot
+nonebot.init()
 from tsugu import constants as K
 
 # help.py 的 USAGES / HELP_ORDER 必须覆盖每一个非 bind_reply 的命令
@@ -3161,6 +3197,11 @@ Expected: 三行 OK，无 Traceback。
 import sys
 
 sys.path.insert(0, "src/plugins")
+
+import nonebot
+
+# tsugu/__init__.py 在 import 时就会调用 get_plugin_config，必须先初始化 NoneBot
+nonebot.init()
 
 from tsugu import constants as K
 from tsugu.rule import apply_shortcut, build_head_table, match_car, match_command, normalize
