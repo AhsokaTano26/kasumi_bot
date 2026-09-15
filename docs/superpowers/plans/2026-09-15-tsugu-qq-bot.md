@@ -428,6 +428,7 @@ TIER_LISTS: dict[str, list[int]] = {
         400,
         500,
         1000,
+        1500,
         2000,
         3000,
         4000,
@@ -567,6 +568,7 @@ ERR_NOT_BOUND = "用户未绑定player"
 ERR_NOT_BOUND_ON_SERVER = "用户在对应服务器上未绑定player"
 ERR_GROUP_ONLY = "该指令仅在群聊中可用"
 ERR_GACHA_DISABLED = "抽卡功能已关闭"
+ERR_COMMAND_FAILED = "执行指令 {head} 失败"
 
 HTTP_ERROR_TEXTS: dict[int, str] = {
     400: "错误: 请求参数错误, 可能因为版本与后端服务器版本不一致",
@@ -581,6 +583,11 @@ ERR_NETWORK = "错误: 后端服务器连接出错"
 def incomplete_cmd_text(head: str) -> str:
     """参数不完整时的标准两行提示，与 mainline Tsugu 一致。"""
     return f"{ERR_INCOMPLETE_CMD}\n使用以下指令以查看帮助:\n  help {head}"
+
+
+def command_failed_text(head: str) -> str:
+    """处理器抛出未预期异常时的兜底提示，与 mainline Tsugu 一致。"""
+    return ERR_COMMAND_FAILED.format(head=head)
 
 
 # ---- 命令头表 ----
@@ -2427,8 +2434,22 @@ async def _dispatch(bot: Bot, event: QQMessageEvent) -> None:
         max_messages=config.tsugu_max_messages,
         pending=pending,
     )
-    await handler(ctx)
+
+    try:
+        await handler(ctx)
+    except (MatcherException, ProcessException):
+        # NoneBot 的控制流靠异常实现：finish/reply 抛的 FinishedException、
+        # 跳过的 SkippedException 等都在这两棵树下，必须原样放行，
+        # 否则指令永远走不到「正常结束」，用户反而会收到兜底报错。
+        raise
+    except Exception as exc:  # noqa: BLE001 - 兜底，避免处理器异常变成完全静默
+        text = const.command_failed_text(head)
+        nonebot.logger.opt(exception=exc).error(text)
+        await ctx.reply_error(text)
 ```
+
+（`MatcherException` / `ProcessException` 需从 `nonebot.exception` 导入。
+兜底文案与上游 koishi 的 `cmdConfig.handleError` 一致：`执行指令 ${command.displayName} 失败`。）
 
 - [ ] **Step 7: 验证假事件能正确剥离 @ 并命中命令**
 
@@ -2903,7 +2924,11 @@ async def handle_ycm(ctx: Ctx) -> None:
             await ctx.reply_text(f"没有找到包含 {keyword} 的房间")
             return
 
-    # 房间列表为空时后端自己会返回提示文本，这里不用特殊处理
+    # 房间列表为空时上游客户端会短路返回字面量 "myc"，不请求 /roomList；
+    # 后端 drawRoomList 对空列表也返回同一个 "myc"。实测公共后端：
+    #   room_list([]) -> [{'type': 'string', 'string': 'myc'}]
+    # 即空列表最终展示的就是 "myc"，与本移植版行为一致，故这里不做特判。
+    # （注意该路由的 notEmpty 校验并不会拦住空数组——实测未触发 400。）
     await ctx.reply(await api.render_room_list(rooms))
 ```
 
