@@ -30,9 +30,10 @@
   同包内用单点相对导入（`from . import Ctx, register`）。**不要用父级相对导入 `from .. import x`**——
   ruff 的 `TID252` 会报错。常量模块的别名用小写 `const`，不要用 `K`（`N812` 禁止小写模块用大写别名）。
 - **布尔参数**：一律写成仅关键字参数（`*, enabled: bool`），调用时用 `enabled=True`（`FBT001`/`FBT003`）。
-- **`except Exception`**：只有在异常对象**未被使用**时才需要 `# noqa: BLE001`；如果写了
-  `except Exception as exc:` 并在体内用到了 `exc`（例如 `logger.opt(exception=exc)`），
-  BLE001 不会触发，此时加 noqa 反而会触发 `RUF100`（未使用的 noqa）。
+- **`except Exception`**：**一律要加 `# noqa: BLE001`**。实测（ruff 0.15.13 + 本项目配置）即使写成
+  `except Exception as exc:` 并在体内使用 `exc`，BLE001 依然触发，所以这条 noqa 是必需的，不是可选的。
+  注意配套约束：`as exc` 而体内不用 `exc` 会触发 `F841`，所以要么用上 `exc`（例如
+  `logger.opt(exception=exc)`），要么写成不带 `as` 的 `except Exception:  # noqa: BLE001`。
 - **提交信息**：**只能一句话**，形如 `feat: 新增触发层`。不留正文、不留空行、**绝不加 `Co-Authored-By` 或任何 Claude 字样**。
 - **不写 pytest 测试套件**（用户明确要求精简）。每个任务的验证用一次性探针脚本或真实后端调用完成。探针脚本写到 `$CLAUDE_JOB_DIR/tmp/`（该变量未设置时用 `/tmp`），**不要提交到仓库**。
   探针脚本的固定前缀：`sys.path.insert(0, "src/plugins")` 之后必须紧跟 `import nonebot` + `nonebot.init()`，**然后**才能 import `tsugu.*`。
