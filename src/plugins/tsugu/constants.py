@@ -230,9 +230,11 @@ HTTP_ERROR_TEXTS: dict[int, str] = {
 ERR_NETWORK = "错误: 后端服务器连接出错"
 
 
-def incomplete_cmd_text(head: str) -> str:
+def incomplete_cmd_text(head: str, command_start: str = "") -> str:
     """参数不完整时的标准两行提示，与 mainline Tsugu 一致。"""
-    return f"{ERR_INCOMPLETE_CMD}\n使用以下指令以查看帮助:\n  help {head}"
+    return (
+        f"{ERR_INCOMPLETE_CMD}\n使用以下指令以查看帮助:\n  {command_start}help {head}"
+    )
 
 
 def command_failed_text(head: str) -> str:

@@ -12,7 +12,7 @@ META_FLAG = "-m"
 @register("search_event")
 async def handle_search_event(ctx: Ctx) -> None:
     if not ctx.args:
-        await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head, ctx.command_start))
         return
 
     tsugu_user = await user.load_user_or_finish(ctx.matcher, ctx.user_id)
@@ -30,7 +30,9 @@ async def handle_event_stage(ctx: Ctx) -> None:
     event_id: int | None = None
     if positional:
         if not positional[0].isdecimal():
-            await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
+            await ctx.reply_error(
+                const.incomplete_cmd_text(ctx.head, ctx.command_start)
+            )
             return
         event_id = int(positional[0])
 

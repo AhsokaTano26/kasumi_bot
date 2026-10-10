@@ -33,6 +33,8 @@ class Ctx:
     head: str
     at_user_id: str | None
     max_messages: int
+    command_start: str = ""
+    """帮助入口和参数错误提示使用的有效命令前缀。"""
     # PendingBind 在 TYPE_CHECKING 下导入；本文件有 from __future__ import
     # annotations，注解不会在运行时求值，所以不用加引号。
     pending: PendingBind | None = None

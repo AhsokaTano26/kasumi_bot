@@ -6,7 +6,15 @@ USAGES 是帮助文本的唯一来源：命令的详细用法从这里读，help
 
 from __future__ import annotations
 
+from html import escape
+from urllib.parse import quote
+
+import nonebot
+from nonebot.adapters.qq import MessageSegment
+from nonebot.adapters.qq.exception import ActionFailed
+
 from .. import constants as const
+from ..rule import match_command
 from . import Ctx, register
 
 USAGES: dict[str, str] = {
@@ -171,22 +179,67 @@ HELP_ORDER: list[str] = [
 
 
 def heads_of(command: str) -> list[str]:
-    """某个命令 ID 对应的全部命令头。"""
-    return [head for head, cmd in const.COMMAND_HEADS if cmd == command]
+    """某个命令 ID 的有效命令头，包含配置别名并保留默认展示顺序。"""
+    from .. import HEAD_TABLE
+
+    heads = [
+        head
+        for head, cmd in const.COMMAND_HEADS
+        if cmd == command and HEAD_TABLE.get(head) == command
+    ]
+    heads.extend(
+        head for head, cmd in HEAD_TABLE.items() if cmd == command and head not in heads
+    )
+    return heads
+
+
+def _command_input(head: str) -> str:
+    """QQ 参数指令标签：点击只填入命令和空格，等待用户编辑发送。"""
+    return f'<qqbot-cmd-input text="{quote(head + " ", safe="")}" />'
+
+
+async def _reply_help(ctx: Ctx, text: str, markdown: str) -> None:
+    try:
+        await ctx.matcher.send(MessageSegment.markdown(markdown))
+    except ActionFailed as exc:
+        nonebot.logger.warning(f"可点击帮助发送失败，改用纯文本: {exc}")
+        await ctx.reply_text(text)
 
 
 @register("help")
 async def handle_help(ctx: Ctx) -> None:
+    from .. import HEAD_TABLE
+
     if ctx.args:
-        query = ctx.args[0]
-        for command, usage in USAGES.items():
-            if query == command or query in heads_of(command):
-                await ctx.reply_text(usage)
-                return
+        query = " ".join(ctx.args)
+        matched = match_command(
+            query,
+            HEAD_TABLE,
+            command_start={"", *nonebot.get_driver().config.command_start},
+        )
+        command = query if query in USAGES else None
+        if matched is not None and not matched.args:
+            command = matched.command
+        if command in USAGES:
+            usage = USAGES[command]
+            heads = heads_of(command)
+            markdown = "\n\n".join(escape(usage, quote=False).splitlines())
+            if heads:
+                markdown = (
+                    _command_input(ctx.command_start + heads[0]) + "\n\n" + markdown
+                )
+            await _reply_help(ctx, usage, markdown)
+            return
         await ctx.reply_text(f"未找到命令 {query}")
         return
 
-    lines = ["未知命令，可用命令如下：", ""]
+    hint = f"输入「{ctx.command_start}help 命令名」查看详细用法。"
+    lines = ["Kasumi 命令帮助", hint, ""]
+    markdown_lines = [
+        "# Kasumi 命令帮助",
+        "点击蓝色命令名填入输入框，补齐参数后发送。",
+        hint,
+    ]
     for command in HELP_ORDER:
         heads = heads_of(command)
         usage = USAGES.get(command)
@@ -195,4 +248,8 @@ async def handle_help(ctx: Ctx) -> None:
         summary = usage.splitlines()[1]
         lines.append(" / ".join(heads))
         lines.append(f"    {summary}")
-    await ctx.reply_text("\n".join(lines))
+        label = _command_input(ctx.command_start + heads[0])
+        if len(heads) > 1:
+            label += " / " + escape(" / ".join(heads[1:]), quote=False)
+        markdown_lines.append(label + "\n\n" + escape(summary, quote=False))
+    await _reply_help(ctx, "\n".join(lines), "\n\n".join(markdown_lines))

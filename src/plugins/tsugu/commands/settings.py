@@ -125,7 +125,7 @@ async def handle_unbind_player(ctx: Ctx) -> None:
 @register("main_server")
 async def handle_main_server(ctx: Ctx) -> None:
     if not ctx.args:
-        await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head, ctx.command_start))
         return
 
     try:
@@ -171,6 +171,10 @@ async def handle_display_servers(ctx: Ctx) -> None:
 
 @register("player_status")
 async def handle_player_status(ctx: Ctx) -> None:
+    if len(ctx.args) > 1:
+        await ctx.reply_error("错误: 玩家状态只能指定序号或服务器中的一个")
+        return
+
     tsugu_user = await user.load_user_or_finish(ctx.matcher, ctx.user_id)
 
     index: int | None = None
@@ -179,12 +183,6 @@ async def handle_player_status(ctx: Ctx) -> None:
     if ctx.args:
         if ctx.args[0].isdecimal():
             index = int(ctx.args[0])
-            if len(ctx.args) > 1:
-                try:
-                    server = await api.resolve_server(ctx.args[1])
-                except ValueError as exc:
-                    await ctx.reply_error(str(exc))
-                    return
         else:
             try:
                 server = await api.resolve_server(ctx.args[0])
@@ -210,7 +208,7 @@ async def handle_player_list(ctx: Ctx) -> None:
 @register("player_index")
 async def handle_player_index(ctx: Ctx) -> None:
     if not ctx.args or not ctx.args[0].isdecimal():
-        await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head, ctx.command_start))
         return
 
     index = int(ctx.args[0])

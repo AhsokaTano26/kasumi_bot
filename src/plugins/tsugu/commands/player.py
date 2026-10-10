@@ -10,7 +10,7 @@ from . import Ctx, register
 @register("search_player")
 async def handle_search_player(ctx: Ctx) -> None:
     if not ctx.args or not ctx.args[0].isdecimal():
-        await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head, ctx.command_start))
         return
 
     player_id = int(ctx.args[0])
@@ -25,5 +25,7 @@ async def handle_search_player(ctx: Ctx) -> None:
 
     tsugu_user = await user.load_user_or_finish(ctx.matcher, ctx.user_id)
     await ctx.reply(
-        await api.search_player(player_id, server or tsugu_user.main_server)
+        await api.search_player(
+            player_id, tsugu_user.main_server if server is None else server
+        )
     )
