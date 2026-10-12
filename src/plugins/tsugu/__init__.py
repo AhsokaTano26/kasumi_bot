@@ -93,6 +93,15 @@ def _mentions_bot(bot: Bot, event: QQMessageEvent) -> bool:
     """判断真正的 @，避免把仅引用机器人消息的 to_me 当作 @。"""
     if isinstance(event, GroupAtMessageCreateEvent):
         return True
+    original_message = getattr(event, "original_message", None)
+    if original_message is not None:
+        # 适配器先去掉引用时自动添加的 @，再保存此快照、移除真正的 @bot。
+        # raw content 和 mentions 仍保留引用对象，不能用它们把引用误判成主动 @。
+        return any(
+            segment.type == "mention_user"
+            and segment.data.get("user_id") == bot.self_info.id
+            for segment in original_message
+        )
     if any(
         mention.scope == "single" and mention.is_you for mention in event.mentions or []
     ):
