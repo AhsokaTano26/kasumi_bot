@@ -41,7 +41,7 @@ async def _resolve_event_and_server(
 @register("cutoff")
 async def handle_cutoff(ctx: Ctx) -> None:
     if not ctx.args or not ctx.args[0].isdecimal():
-        await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head, ctx.command_start))
         return
 
     tier = int(ctx.args[0])
@@ -52,7 +52,9 @@ async def handle_cutoff(ctx: Ctx) -> None:
 
     tsugu_user = await user.load_user_or_finish(ctx.matcher, ctx.user_id)
     await ctx.reply(
-        await api.cutoff_detail(server or tsugu_user.main_server, tier, event_id)
+        await api.cutoff_detail(
+            tsugu_user.main_server if server is None else server, tier, event_id
+        )
     )
 
 
@@ -64,13 +66,17 @@ async def handle_cutoff_all(ctx: Ctx) -> None:
     event_id, server = parsed
 
     tsugu_user = await user.load_user_or_finish(ctx.matcher, ctx.user_id)
-    await ctx.reply(await api.cutoff_all(server or tsugu_user.main_server, event_id))
+    await ctx.reply(
+        await api.cutoff_all(
+            tsugu_user.main_server if server is None else server, event_id
+        )
+    )
 
 
 @register("cutoff_history")
 async def handle_cutoff_history(ctx: Ctx) -> None:
     if not ctx.args or not ctx.args[0].isdecimal():
-        await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head, ctx.command_start))
         return
 
     tier = int(ctx.args[0])
@@ -81,5 +87,7 @@ async def handle_cutoff_history(ctx: Ctx) -> None:
 
     tsugu_user = await user.load_user_or_finish(ctx.matcher, ctx.user_id)
     await ctx.reply(
-        await api.cutoff_history(server or tsugu_user.main_server, tier, event_id)
+        await api.cutoff_history(
+            tsugu_user.main_server if server is None else server, tier, event_id
+        )
     )

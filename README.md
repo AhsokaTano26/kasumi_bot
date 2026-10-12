@@ -44,6 +44,24 @@ WebSocket connection, which QQ eventually closes with `4009 Session timed out`
 and then retries every few seconds — harmless to the bot's function, but noisy
 in the logs.
 
+## Commands and help
+
+The custom QQ dispatcher follows NoneBot's `COMMAND_START` setting. To accept
+both `help` and `/help` (and both forms of every other command), configure:
+
+```env
+COMMAND_START=["","/"]
+```
+
+In groups, **@ this bot** and send `help`, `/help`, or `帮助` to view the command
+list; help without a real @ mention is ignored, including replies to the bot.
+In private chats, send the help command directly. Click a blue command name to fill
+the QQ input box, add any required arguments, then send it. `help 查卡` and
+`/help /查卡` show detailed usage; configured command aliases also appear in help.
+The clickable entries use QQ's
+[parameter command format](https://github.com/tencent-connect/bot-docs/blob/main/docs/develop/api-v2/server-inter/message/trans/text-chain.md).
+If QQ rejects the Markdown message, the bot falls back to plain text help.
+
 ## Documentation
 
 See [Docs](https://nonebot.dev/)

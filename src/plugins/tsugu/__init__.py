@@ -1,7 +1,7 @@
 """Tsugu BanGDream Bot 的 QQ 官方 Bot 前端。
 
-QQ 群里 Bot 只能收到 @ 了它的消息，@ 会被解析成 MentionUser 段，导致
-nonebot 的 TrieRule 完全不匹配。所以这里只注册一个 on_message，自己做分派。
+QQ 群消息中的 @ 会被解析成 MentionUser 段，可能阻止标准命令匹配，
+所以这里只注册一个 on_message，自己做分派；群聊帮助必须 @ 当前机器人。
 """
 
 from __future__ import annotations
@@ -14,9 +14,8 @@ from nonebot import get_plugin_config, on_message
 
 # 这两个必须是运行时导入：NoneBot 靠运行时求值注解来做依赖注入，
 # 注解写成 Any 会直接抛 `ValueError: Unknown parameter bot`。
-# ruff 的 TC002 认不出 @tsugu.handle() 是运行时求值装饰器，故显式豁免。
-from nonebot.adapters.qq import Bot  # noqa: TC002
-from nonebot.adapters.qq.event import QQMessageEvent  # noqa: TC002
+from nonebot.adapters.qq import Bot, Message
+from nonebot.adapters.qq.event import GroupAtMessageCreateEvent, QQMessageEvent
 from nonebot.exception import MatcherException, ProcessException
 from nonebot.plugin import PluginMetadata, require
 
@@ -30,7 +29,6 @@ from . import constants as const
 from .commands import HANDLERS, Ctx
 from .config import Config
 from .rule import (
-    apply_shortcut,
     build_head_table,
     get_group_openid,
     match_command,
@@ -91,6 +89,31 @@ HEAD_TABLE = build_head_table(_collect_heads())
 tsugu = on_message(priority=10, block=True)
 
 
+def _mentions_bot(bot: Bot, event: QQMessageEvent) -> bool:
+    """判断真正的 @，避免把仅引用机器人消息的 to_me 当作 @。"""
+    if isinstance(event, GroupAtMessageCreateEvent):
+        return True
+    original_message = getattr(event, "original_message", None)
+    if original_message is not None:
+        # 适配器先去掉引用时自动添加的 @，再保存此快照、移除真正的 @bot。
+        # raw content 和 mentions 仍保留引用对象，不能用它们把引用误判成主动 @。
+        return any(
+            segment.type == "mention_user"
+            and segment.data.get("user_id") == bot.self_info.id
+            for segment in original_message
+        )
+    if any(
+        mention.scope == "single" and mention.is_you for mention in event.mentions or []
+    ):
+        return True
+    # 适配器可能已经移除了 @ 段；从原始 content 判断目标 ID，
+    # 同时避免把 @ 其他机器人或普通文字「@kasumi」误判成 @ 当前机器人。
+    return any(
+        segment.type == "mention_user" and segment.data["user_id"] == bot.self_info.id
+        for segment in Message(event.content)
+    )
+
+
 @tsugu.handle()
 async def _dispatch(bot: Bot, event: QQMessageEvent) -> None:
     # 这两个注解必须是运行时导入的：NoneBot 靠运行时求值注解来做依赖注入，
@@ -116,11 +139,21 @@ async def _dispatch(bot: Bot, event: QQMessageEvent) -> None:
             return
 
         matched = match_command(
-            apply_shortcut(text), HEAD_TABLE, no_space=config.tsugu_no_space
+            text,
+            HEAD_TABLE,
+            no_space=config.tsugu_no_space,
+            command_start=nonebot.get_driver().config.command_start,
         )
         if matched is None:
             return
         command, head, args = matched.command, matched.head, matched.args
+
+    if (
+        command == "help"
+        and get_group_openid(event) is not None
+        and not _mentions_bot(bot, event)
+    ):
+        return
 
     handler = HANDLERS.get(command)
     if handler is None:
@@ -137,6 +170,11 @@ async def _dispatch(bot: Bot, event: QQMessageEvent) -> None:
         head=head,
         at_user_id=user_id if config.tsugu_at else None,
         max_messages=config.tsugu_max_messages,
+        command_start=min(
+            nonebot.get_driver().config.command_start,
+            key=lambda start: (len(start), start),
+            default="",
+        ),
         pending=pending,
     )
 

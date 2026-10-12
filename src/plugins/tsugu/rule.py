@@ -66,19 +66,26 @@ def match_command(
     table: dict[str, str],
     *,
     no_space: bool = False,
+    command_start: Iterable[str] = ("",),
 ) -> Match | None:
     """在 text 里匹配命令头。没有命中返回 None。
 
     no_space=False（默认）时命令头之后必须是空白或字符串结束；
     no_space=True 时额外允许「查卡947」这种无空格写法。
+
+    command_start 与 NoneBot 的 COMMAND_START 配置一致；shortcut 也遵循此前缀。
     """
-    for head, command in table.items():
-        if not text.startswith(head):
+    for start in sorted(set(command_start), key=lambda value: (-len(value), value)):
+        if not text.startswith(start):
             continue
-        rest = text[len(head) :]
-        if rest and not no_space and not rest[0].isspace():
-            continue
-        return Match(command=command, head=head, args=rest.split())
+        command_text = apply_shortcut(text[len(start) :])
+        for head, command in table.items():
+            if not command_text.startswith(head):
+                continue
+            rest = command_text[len(head) :]
+            if rest and not no_space and not rest[0].isspace():
+                continue
+            return Match(command=command, head=head, args=rest.split())
     return None
 
 

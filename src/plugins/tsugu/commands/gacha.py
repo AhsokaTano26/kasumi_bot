@@ -10,11 +10,11 @@ from . import Ctx, register
 @register("search_gacha")
 async def handle_search_gacha(ctx: Ctx) -> None:
     if not ctx.args:
-        await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head, ctx.command_start))
         return
 
     if not ctx.args[0].removeprefix("-").isdecimal():
-        await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head, ctx.command_start))
         return
 
     tsugu_user = await user.load_user_or_finish(ctx.matcher, ctx.user_id)
@@ -26,7 +26,11 @@ async def handle_search_gacha(ctx: Ctx) -> None:
 @register("gacha_simulate")
 async def handle_gacha_simulate(ctx: Ctx) -> None:
     if not ctx.args or not ctx.args[0].isdecimal():
-        await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head, ctx.command_start))
+        return
+
+    if len(ctx.args) > 1 and not ctx.args[1].isdecimal():
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head, ctx.command_start))
         return
 
     if ctx.group_openid is not None and not await db.is_gacha_enabled(ctx.group_openid):
@@ -34,8 +38,7 @@ async def handle_gacha_simulate(ctx: Ctx) -> None:
         return
 
     times = int(ctx.args[0])
-    has_gacha_id = len(ctx.args) > 1 and ctx.args[1].isdecimal()
-    gacha_id = int(ctx.args[1]) if has_gacha_id else None
+    gacha_id = int(ctx.args[1]) if len(ctx.args) > 1 else None
 
     tsugu_user = await user.load_user_or_finish(ctx.matcher, ctx.user_id)
     await ctx.reply(await api.gacha_simulate(tsugu_user.main_server, times, gacha_id))

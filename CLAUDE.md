@@ -10,12 +10,19 @@ The bot owns no game data and renders nothing itself. Every query is answered by
 
 ## Common Commands
 
+Use `main` for subsequent work; do not create feature branches or separate Git
+worktrees unless the user explicitly requests one. See `AGENTS.md` for the shared
+repository workflow. Docker image publishing is triggered by pushes to `main`.
+
 ```bash
 # Run the bot locally with hot-reload
 nb run --reload
 
 # Install dependencies
 pip install -r requirements.txt
+
+# Run regression tests
+python -m unittest discover -s tests -v
 
 # Lint and format
 ruff check src/ qq_config.py

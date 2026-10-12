@@ -10,7 +10,7 @@ from . import Ctx, register
 @register("search_card")
 async def handle_search_card(ctx: Ctx) -> None:
     if not ctx.args:
-        await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head, ctx.command_start))
         return
 
     tsugu_user = await user.load_user_or_finish(ctx.matcher, ctx.user_id)
@@ -22,7 +22,7 @@ async def handle_search_card(ctx: Ctx) -> None:
 @register("card_illustration")
 async def handle_card_illustration(ctx: Ctx) -> None:
     if not ctx.args or not ctx.args[0].isdecimal():
-        await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head, ctx.command_start))
         return
 
     await ctx.reply(await api.card_illustration(int(ctx.args[0])))

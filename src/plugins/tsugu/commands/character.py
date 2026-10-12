@@ -10,7 +10,7 @@ from . import Ctx, register
 @register("search_character")
 async def handle_search_character(ctx: Ctx) -> None:
     if not ctx.args:
-        await ctx.reply_error(const.incomplete_cmd_text(ctx.head))
+        await ctx.reply_error(const.incomplete_cmd_text(ctx.head, ctx.command_start))
         return
 
     tsugu_user = await user.load_user_or_finish(ctx.matcher, ctx.user_id)
