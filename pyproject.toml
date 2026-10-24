@@ -9,14 +9,17 @@ dependencies = [
     "nonebot2[httpx]>=2.5.0",
     "nonebot2[websockets]>=2.5.0",
     "nonebot-adapter-qq>=1.7.3",
-    "nonebot-plugin-orm[sqlite]>=0.8.0",
+    "nonebot-plugin-orm[sqlite]>=0.8.4",
+    "httpx>=0.28.1",
     "tsugu-api-python[httpx]>=1.5.10"
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pyright[nodejs]",
-    "ruff"
+    "nb-cli>=1.7.4",
+    "nb-cli-plugin-docker>=0.6.1",
+    "pyright[nodejs]>=1.1.414",
+    "ruff>=0.17.2"
 ]
 
 [tool.nonebot]

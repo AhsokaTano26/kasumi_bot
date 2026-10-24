@@ -62,6 +62,45 @@ The clickable entries use QQ's
 [parameter command format](https://github.com/tencent-connect/bot-docs/blob/main/docs/develop/api-v2/server-inter/message/trans/text-chain.md).
 If QQ rejects the Markdown message, the bot falls back to plain text help.
 
+## Uptime Kuma health reporting
+
+The `kuma_health` plugin reports to an existing Uptime Kuma **Push** monitor.
+Set its Push URL in the deployment environment (or `.env.prod`) and restart:
+
+```env
+KUMA_PUSH_URL=https://kuma.example.com/api/push/your-push-token
+```
+
+The complete URL copied from Kuma, including `?status=up&msg=OK&ping=`, also
+works: the plugin replaces those parameters with each check's actual result.
+Leaving `KUMA_PUSH_URL` unset or empty disables the background task.
+
+The first check runs 60 seconds after startup, then every 60 seconds. Kasumi
+reports `up` only when its local QQ Webhook responds to a verification request
+and every configured QQ account's `/users/@me` identity request succeeds.
+Checks do not depend on receiving a QQ message first. Failed checks, timeouts,
+invalid identities, or missing accounts report `down`. Requests time out after
+10 seconds; failed Kuma pushes are logged and retried on the next cycle.
+
+Use a Kuma heartbeat interval longer than 60 seconds (for example, 90 seconds)
+to allow time for checks and network latency. If Kasumi stops entirely, Kuma
+detects the missing heartbeats. The Webhook probe uses the application's
+`HOST`/`PORT` and checks the local service; it does not test public DNS or the
+external reverse proxy.
+
 ## Documentation
 
 See [Docs](https://nonebot.dev/)
+
+## Updating dependencies
+
+`pyproject.toml` declares the application dependencies and development tools.
+Regenerate the pinned requirements for supported Python versions and platforms:
+
+```sh
+uv pip compile pyproject.toml --extra dev --universal --upgrade --prerelease disallow --no-strip-extras --no-annotate -o requirements.txt
+uv pip sync requirements.txt
+python -m unittest discover -s tests -v
+ruff check src/ qq_config.py tests/test_kuma_health.py
+pyright src/ qq_config.py
+```
